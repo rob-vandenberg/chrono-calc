@@ -31,9 +31,10 @@
 #include <memory>
 
 // --- Version ------------------------------------------------------------
-// tests/test_mainwindow.cpp 0.3.9
+// tests/test_mainwindow.cpp 0.3.10
 
 // --- Version history ----------------------------------------------------
+// v0.3.10: Greek and Hebrew: the Q key is x² in Scientific; in Standard its sign counts
 // v0.3.9: A Russian keyboard keeps the letter keys and Ctrl letters; AZERTY keeps its own letters
 // v0.3.8: The Programmer view: its size, the bases, the bit display and its clicks, the greyed digits
 // v0.2.7: The Scientific view: switching, its size, keys, Inv labels, toggles, angle units, bracket counter, the
@@ -115,6 +116,13 @@ private slots:
     static void initTestCase()
     {
         settingsFolder() = std::make_unique<QTemporaryDir>();
+        // The keyboard layouts the window finds without a desktop (XKB's defaults, with the offscreen platform CTest
+        // gives the tests): US, Greek, Hebrew and French
+        // (AZERTY), and nothing else of the developer's own XKB settings
+        qputenv("XKB_DEFAULT_LAYOUT", "us,gr,il,fr");
+        for (const char* name : {"XKB_DEFAULT_RULES", "XKB_DEFAULT_MODEL", "XKB_DEFAULT_VARIANT", "XKB_DEFAULT_OPTIONS"}) {
+            qunsetenv(name);
+        }
         QVERIFY(settingsFolder()->isValid());
         QCoreApplication::setOrganizationName(QStringLiteral("chrono-calc-test"));
         QCoreApplication::setApplicationName(QStringLiteral("test_mainwindow"));
@@ -292,6 +300,47 @@ private slots:
         pressKey(view, Qt::Key_M, QString(), 0x27, Qt::ControlModifier);
         QVERIFY(displayOf(*window)->memoryMarkShown());
         QTest::keyClick(view, Qt::Key_L, Qt::ControlModifier);
+    }
+
+    // Greek and Hebrew (Windows 7, reference part F line 6): the Q key types ; or / ; where the view has a command for
+    // Q (x² in Scientific) that wins, elsewhere the sign counts (; is nothing in Standard, / divides)
+    static void aSignOnALetterPlaceCountsOnlyWhereTheLetterHasNoCommand()
+    {
+        const auto window = openWindow();
+        QVERIFY(window);
+        QWidget* view = window->centralWidget();
+        constexpr std::uint32_t qPlace = 0x10;
+        QTest::keyClicks(view, QStringLiteral("8"));
+        pressKey(view, Qt::Key_Semicolon, QStringLiteral(";"), qPlace, Qt::NoModifier, 0x3B);
+        QCOMPARE(displayOf(*window)->number(), QStringLiteral("8"));
+        QCOMPARE(displayOf(*window)->expression(), QString());
+        pressKey(view, Qt::Key_Slash, QStringLiteral("/"), qPlace, Qt::NoModifier, 0x2F);
+        QCOMPARE(displayOf(*window)->expression(), QStringLiteral("8 /"));
+        QTest::keyClicks(view, QStringLiteral("2"));
+        QTest::keyClick(view, Qt::Key_Return);
+        QCOMPARE(displayOf(*window)->number(), QStringLiteral("4"));
+        QTest::keyClick(view, Qt::Key_2, Qt::AltModifier);
+        QTest::keyClicks(view, QStringLiteral("3"));
+        pressKey(view, Qt::Key_Semicolon, QStringLiteral(";"), qPlace, Qt::NoModifier, 0x3B);
+        QCOMPARE(displayOf(*window)->number(), QStringLiteral("9"));
+        QCOMPARE(displayOf(*window)->expression(), QStringLiteral("sqr(3)"));
+        QTest::keyClick(view, Qt::Key_Escape);
+        QTest::keyClicks(view, QStringLiteral("3"));
+        pressKey(view, Qt::Key_Slash, QStringLiteral("/"), qPlace, Qt::NoModifier, 0x2F);
+        QCOMPARE(displayOf(*window)->number(), QStringLiteral("9"));
+        QCOMPARE(displayOf(*window)->expression(), QStringLiteral("sqr(3)"));
+        // AZERTY's , on the place of the US M is the decimal point in Standard, not M
+        QTest::keyClick(view, Qt::Key_1, Qt::AltModifier);
+        QTest::keyClicks(view, QStringLiteral("1"));
+        pressKey(view, Qt::Key_Comma, QStringLiteral(","), 0x32, Qt::NoModifier, 0x2C);
+        QTest::keyClicks(view, QStringLiteral("5"));
+        QCOMPARE(displayOf(*window)->number(), QStringLiteral("1,5"));
+        QTest::keyClick(view, Qt::Key_2, Qt::AltModifier);
+        // The US ; key, off the 26 letter places, is still Int
+        QTest::keyClick(view, Qt::Key_Escape);
+        QTest::keyClicks(view, QStringLiteral("3"));
+        pressKey(view, Qt::Key_Semicolon, QStringLiteral(";"), 0x27, Qt::NoModifier, 0x3B);
+        QCOMPARE(displayOf(*window)->expression(), QStringLiteral("Int(3)"));
     }
 
     // A typed key shows its button pressed for a moment

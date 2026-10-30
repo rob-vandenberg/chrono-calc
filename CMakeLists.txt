@@ -1,10 +1,11 @@
 cmake_minimum_required(VERSION 3.25)
-project(chrono-calc VERSION 0.3.9 LANGUAGES CXX)
+project(chrono-calc VERSION 0.3.10 LANGUAGES CXX)
 
 # --- Version ------------------------------------------------------------
-# CMakeLists.txt 0.3.9
+# CMakeLists.txt 0.3.10
 
 # --- Version history ----------------------------------------------------
+# v0.3.10: The keyboard layouts in use (xkbcommon, xcb, wayland-client)
 # v0.3.9: Letter keys on keyboards without Latin letters
 # v0.3.8: M3 (versions 0.3.z): the Programmer view
 # v0.2.7: M2 (versions 0.2.z): the Scientific view

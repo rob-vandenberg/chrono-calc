@@ -1,7 +1,8 @@
 # --- Version ------------------------------------------------------------
-# tests/CMakeLists.txt 0.3.8
+# tests/CMakeLists.txt 0.3.10
 
 # --- Version history ----------------------------------------------------
+# v0.3.10: test_keyboardlayouts (which layout a key comes from)
 # v0.3.8: test_reference_programmer (the Windows 7 Programmer results)
 # v0.2.7: test_reference_scientific (the Windows 7 Scientific results)
 # v0.1.6: test_standardview (the buttons and menus of the Standard view)
@@ -24,6 +25,7 @@ chrono_calc_test(test_version chrono_calc_core)
 target_compile_definitions(test_version PRIVATE CHRONO_CALC_PROJECT_VERSION="${PROJECT_VERSION}")
 
 chrono_calc_test(test_mainwindow chrono_calc_ui)
+chrono_calc_test(test_keyboardlayouts chrono_calc_ui)
 
 chrono_calc_test(test_calculator chrono_calc_core)
 chrono_calc_test(test_reference_standard chrono_calc_core)

@@ -36,7 +36,7 @@ Versions (D-013): M0 is 0.0.z, M1 0.1.z, M2 0.2.z and so on; M9 finished is 1.0.
 
 | Task | What | Status |
 |---|---|---|
-| 3.1 | Hex, Dec, Oct, Bin; Qword, Dword, Word, Byte; bit operations (the engine has them); the bit display (ours) | done (0.3.8, D-021): 30 Windows 7 results pass (`tests/test_reference_programmer.cpp`); 0.3.9: letter keys on non-Latin keyboards (D-022) |
+| 3.1 | Hex, Dec, Oct, Bin; Qword, Dword, Word, Byte; bit operations (the engine has them); the bit display (ours) | done (0.3.8, D-021): 30 Windows 7 results pass (`tests/test_reference_programmer.cpp`); 0.3.9, 0.3.10: letter keys on non-Latin keyboards (D-022) |
 
 ## M4: Statistics view
 
@@ -73,7 +73,7 @@ Versions (D-013): M0 is 0.0.z, M1 0.1.z, M2 0.2.z and so on; M9 finished is 1.0.
 | Task | What | Status |
 |---|---|---|
 | 9.1 | Help and About; our own icon; the Calc menu entry and AppStream file | todo |
-| 9.2 | `.deb` and `.rpm` packages: the CPack settings (`include(CPack)`, package names, dependencies) that `build-release.sh` needs; tested on Debian/Ubuntu and Fedora/RHEL, on KDE and GNOME | todo |
+| 9.2 | `.deb` and `.rpm` packages: the CPack settings (`include(CPack)`, package names, dependencies) that `build-release.sh` needs; tested on Debian/Ubuntu and Fedora/RHEL, on KDE and GNOME; the owner tests the `.rpm` on a Fedora computer with Wayland, including the Greek or Hebrew Q key in Scientific (x², D-022: the keyboard layouts read over Wayland) | todo |
 
 ## M10: Windows (optional, the owner decides)
 

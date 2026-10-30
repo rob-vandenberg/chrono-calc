@@ -81,3 +81,10 @@ Append-only. One entry per completed task, newest last.
 - Chrono Calc read the typed letter, so on Russian, Greek or Arabic its letter keys and Ctrl letters did nothing. Now a letter of another script is read as the US letter at its key's place (D-022); Latin layouts unchanged.
 - Two fresh reviews: the position is only read where its code is known (Linux XKB: scan code plus 8; Windows: the scan code); Thai keys that type a mark are covered; with Ctrl and two layouts (German and Russian) Qt gives the other layout's Latin letter, so the layout's own key symbol tells the script. Not measured: keys of another script that type no letter (Greek Q types ;).
 - Tests: `aKeyboardWithoutLatinLettersKeepsTheLetterKeys` (shown to fail on 0.3.8) and `eachLetterKeyGivesTheLatinLetterAtItsPlace`; the related tests pass with GCC 15, Clang 21 and on Debian 12 (Qt 6.4).
+
+## 2026-10-30: 0.3.10, signs on letter places of Greek and Hebrew
+
+- Measured on the Windows 7 Calculator with Greek and Hebrew (only for the calculator, restored afterwards): the letter of a key's place wins where the view has a command for it, otherwise the typed sign counts (reference part F line 6).
+- Chrono Calc read the Greek Q key's ; as Int and the Hebrew Q key's / as divide in Scientific. Qt does not say which layout typed a sign, so `ui/keyboardlayouts` reads the layouts in use (X11 `_XKB_RULES_NAMES`, Wayland's keyboard description, XKB's defaults in the tests) and tells whether the sign comes from a layout that is not Latin (D-022). Checked on this desktop: the X11 reading finds the us layout.
+- Builds need xkbcommon, xcb and wayland-client; `build-release.sh` installs their build packages in Debian 12 and AlmaLinux 9.
+- Tests: `test_keyboardlayouts` (Greek, Hebrew, AZERTY, Dvorak, US) and `aSignOnALetterPlaceCountsOnlyWhereTheLetterHasNoCommand` (shown to fail on 0.3.9); the related tests pass with GCC 15, Clang 21 and on Debian 12 (Qt 6.4).

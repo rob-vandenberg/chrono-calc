@@ -1,7 +1,8 @@
 # --- Version ------------------------------------------------------------
-# src/CMakeLists.txt 0.3.8
+# src/CMakeLists.txt 0.3.10
 
 # --- Version history ----------------------------------------------------
+# v0.3.10: ui/keyboardlayouts with XKB, xcb and Wayland (which layout a key comes from)
 # v0.3.8: ui/scientificparts is ui/viewparts (choices, the bit display)
 # v0.2.7: The Scientific view: core/layout (every view), core/view.h; ui/scientificparts
 # v0.1.6: The Standard view: core has the layout, the menus and the colours; ui the window, the display, the buttons, the look
@@ -18,9 +19,14 @@ chrono_calc_strict(chrono_calc_core)
 
 # ui: Qt Widgets, on top of core
 add_library(chrono_calc_ui STATIC ui/mainwindow.cpp ui/mainwindow.h ui/calcbutton.cpp ui/calcbutton.h
-    ui/displaypanel.cpp ui/displaypanel.h ui/look.cpp ui/look.h ui/fonts.cpp ui/fonts.h ui/viewparts.cpp ui/viewparts.h)
+    ui/displaypanel.cpp ui/displaypanel.h ui/look.cpp ui/look.h ui/fonts.cpp ui/fonts.h ui/viewparts.cpp ui/viewparts.h
+    ui/keyboardlayouts.cpp ui/keyboardlayouts.h)
 set_target_properties(chrono_calc_ui PROPERTIES AUTOMOC ON)
 target_link_libraries(chrono_calc_ui PUBLIC chrono_calc_core Qt6::Widgets)
+# The keyboard layouts of Linux (ui/keyboardlayouts): XKB, and the X11 and Wayland connections that give them
+find_package(PkgConfig REQUIRED)
+pkg_check_modules(CHRONO_CALC_KEYBOARD REQUIRED IMPORTED_TARGET xkbcommon xcb wayland-client)
+target_link_libraries(chrono_calc_ui PRIVATE PkgConfig::CHRONO_CALC_KEYBOARD)
 chrono_calc_strict(chrono_calc_ui)
 
 # app: the program itself

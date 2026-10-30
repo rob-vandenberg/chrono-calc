@@ -35,6 +35,7 @@
 #include "core/view.h"
 #include "ui/calcbutton.h"
 #include "ui/displaypanel.h"
+#include "ui/keyboardlayouts.h"
 #include "ui/look.h"
 #include "ui/viewparts.h"
 
@@ -45,9 +46,10 @@
 #include <string_view>
 
 // --- Version ------------------------------------------------------------
-// src/ui/mainwindow.cpp 0.3.9
+// src/ui/mainwindow.cpp 0.3.10
 
 // --- Version history ----------------------------------------------------
+// v0.3.10: On a layout that is not Latin a key's place letter comes first, a sign only where the view has no command
 // v0.3.9: A letter of another script (Russian, Greek, Arabic) is read as the Latin letter at its key's position
 // v0.3.8: The Programmer view: its size, the bases and word sizes, the bit display, the digits each base allows
 // v0.2.7: The Scientific view; View > Standard and Scientific switch the buttons and the window size; the view is
@@ -111,63 +113,54 @@ QRect toRect(Rectangle rectangle)
     return {rectangle.left, rectangle.top, rectangle.width, rectangle.height};
 }
 
-// Whether a character is a letter or mark of a script other than Latin (Cyrillic, Greek, Thai, Arabic)
-bool isOtherScriptLetter(char32_t character)
-{
-    if (character == 0 || character > 0x10FFFF || !(QChar::isLetter(character) || QChar::isMark(character))) {
-        return false;
-    }
-    const QChar::Script script = QChar::script(character);
-    return script != QChar::Script_Latin && script != QChar::Script_Common && script != QChar::Script_Inherited;
-}
-
-// Whether an XKB key symbol is a letter of a script other than Latin: a Unicode symbol (0x01000000 plus the
-// character), or one of the old symbol groups of Japanese kana, Arabic, Cyrillic, Greek, Hebrew, Thai and Korean
-bool isOtherScriptKeySymbol(std::uint32_t keySymbol)
-{
-    constexpr std::uint32_t unicodeSymbols = 0x01000000;
-    if ((keySymbol & 0xFF000000) == unicodeSymbols) {
-        return isOtherScriptLetter(keySymbol & 0x00FFFFFF);
-    }
-    switch (keySymbol >> 8) {
-    case 0x04:
-    case 0x05:
-    case 0x06:
-    case 0x07:
-    case 0x0C:
-    case 0x0D:
-    case 0x0E: return true;
-    default: return false;
-    }
-}
-
-// The key a letter of another script (Russian, Greek, Thai, Arabic) stands for: the Latin letter key at its place, as
-// Windows 7 reads its letter keys by position (tests/reference/windows7-programmer.md part F); every other key, Latin
-// letters of any layout (AZERTY, QWERTZ) and other characters (the ; of the Greek Q key, not measured) included, is itself. The place
-// is the PC scan code: on Windows the native scan code itself; on Linux (XKB, also in the tests) the scan code plus 8,
-// and there the layout's own key symbol tells the script, because with Ctrl Qt gives the Latin letter of another
-// layout in use (Ctrl+я is Y with German and Russian; Windows 7 reads Z, the key's place); on any other platform the
-// key is itself.
-int latinKeyOf(const QKeyEvent& event)
+// The Latin letter key a key stands for on a layout that is not Latin (Russian, Greek, Hebrew, Thai, Arabic): the
+// letter of its place, as Windows 7 reads its letter keys by their place (tests/reference/windows7-programmer.md part
+// F). Nothing for a key of a Latin layout (AZERTY, QWERTZ, Dvorak), which is read as it is.
+// Windows: the virtual key, which on such a layout is the letter of the key's place.
+// Linux (XKB, also in the tests): the place is the XKB key code, the PC scan code plus 8. The layout's own key symbol
+// tells the script, because with Ctrl Qt gives the Latin letter of another layout in use (Ctrl+я is Y with German and
+// Russian; Windows 7 reads Z); a sign on a letter's place (the ; of the Greek Q key, the , of the AZERTY M key) is
+// looked up in the layouts in use (KeyboardLayouts). Any other platform: nothing.
+std::optional<int> placeKeyOf(const QKeyEvent& event)
 {
     const int key = event.key();
     const QString platform = QGuiApplication::platformName();
-    const bool xkb = platform == QLatin1String("xcb") || platform.startsWith(QLatin1String("wayland")) ||
-                     platform == QLatin1String("offscreen");
-    if (!xkb && platform != QLatin1String("windows")) {
-        return key;
+    if (platform == QLatin1String("windows")) {
+        const std::uint32_t virtualKey = event.nativeVirtualKey();
+        if (key >= Qt::Key_A && key <= Qt::Key_Z) {
+            return std::nullopt;
+        }
+        if (virtualKey >= 'A' && virtualKey <= 'Z') {
+            return Qt::Key_A + static_cast<int>(virtualKey - 'A');
+        }
+        return std::nullopt;
     }
-    const bool otherScript = (xkb && event.nativeVirtualKey() != 0)
-                                 ? isOtherScriptKeySymbol(event.nativeVirtualKey())
-                                 : (key > 0 && isOtherScriptLetter(static_cast<char32_t>(key)));
-    const std::uint32_t offset = xkb ? 8 : 0;
-    if (!otherScript || event.nativeScanCode() < offset) {
-        return key;
+    if (platform != QLatin1String("xcb") && !platform.startsWith(QLatin1String("wayland")) &&
+        platform != QLatin1String("offscreen")) {
+        return std::nullopt;
     }
-    if (const auto letter = latinLetterAtScanCode(event.nativeScanCode() - offset)) {
-        return Qt::Key_A + static_cast<int>(*letter - U'a');
+    constexpr std::uint32_t xkbOffset = 8;
+    const std::uint32_t keyCode = event.nativeScanCode();
+    if (keyCode < xkbOffset) {
+        return std::nullopt;
     }
-    return key;
+    const std::optional<char32_t> letter = latinLetterAtScanCode(keyCode - xkbOffset);
+    if (!letter) {
+        return std::nullopt;
+    }
+    const std::uint32_t keySymbol = event.nativeVirtualKey();
+    char32_t character = key > 0 ? static_cast<char32_t>(key) : U'\0';
+    if (keySymbol != 0) {
+        character = characterOfKeySymbol(keySymbol);
+    }
+    bool nonLatin = isOtherScriptLetter(character);
+    if (!nonLatin && keySymbol != 0 && character <= QChar::LastValidCodePoint && !QChar::isLetter(character)) {
+        nonLatin = KeyboardLayouts::system().isFromNonLatinLayout({.code = keyCode, .symbol = keySymbol});
+    }
+    if (!nonLatin) {
+        return std::nullopt;
+    }
+    return Qt::Key_A + static_cast<int>(*letter - U'a');
 }
 
 std::optional<Key> keyOf(int qtKey)
@@ -431,21 +424,30 @@ void MainWindow::keyPressEvent(QKeyEvent* event)
 {
     // The number pad and AltGr (the third character of a key) change no command
     const Qt::KeyboardModifiers modifiers = event->modifiers() & ~(Qt::KeypadModifier | Qt::GroupSwitchModifier);
-    const int qtKey = latinKeyOf(*event);
+    // On a layout that is not Latin the letter of the key's place comes first, as in Windows 7: a sign on that place
+    // counts only where the view has no command for the letter (the Greek Q key is x² in Scientific, nothing in Standard)
+    const bool readable = modifiers == Qt::NoModifier || modifiers == Qt::ShiftModifier || modifiers == Qt::ControlModifier;
+    const std::optional<int> placeKey = readable ? placeKeyOf(*event) : std::nullopt;
     std::optional<std::string_view> command;
     if (modifiers == Qt::ControlModifier) {
-        const QString letter = QKeySequence(qtKey).toString();
+        const QString letter = QKeySequence(placeKey.value_or(event->key())).toString();
         if (letter.size() == 1) {
             command = commandForControlLetter(letter.at(0).unicode(), m_calculator.view());
         }
     } else if (modifiers == Qt::NoModifier || modifiers == Qt::ShiftModifier) {
-        if (const auto key = keyOf(qtKey)) {
+        const char32_t first = modifiers == Qt::ShiftModifier ? U'A' : U'a';
+        if (placeKey) {
+            command = commandForCharacter(static_cast<char32_t>(first + (*placeKey - Qt::Key_A)), m_calculator.view());
+        }
+        if (command) {
+            // the place's letter has a command here
+        } else if (const auto key = keyOf(event->key())) {
             command = commandForKey(*key, m_calculator.view());
-        } else if (qtKey >= Qt::Key_A && qtKey <= Qt::Key_Z) {
+        } else if (event->key() >= Qt::Key_A && event->key() <= Qt::Key_Z) {
             // A letter is read from its key, not its character, as Windows 7 does: without Shift it is the small
             // letter, with Shift the capital, whatever Caps Lock is (S is sin with Caps Lock on, Shift+S is nothing)
-            const char32_t first = modifiers == Qt::ShiftModifier ? U'A' : U'a';
-            command = commandForCharacter(static_cast<char32_t>(first + (qtKey - Qt::Key_A)), m_calculator.view());
+            command = commandForCharacter(static_cast<char32_t>(first + (event->key() - Qt::Key_A)),
+                                          m_calculator.view());
         } else if (event->text().size() == 1) {
             command = commandForCharacter(event->text().at(0).unicode(), m_calculator.view());
         }
