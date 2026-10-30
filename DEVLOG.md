@@ -74,3 +74,10 @@ Append-only. One entry per completed task, newest last.
 - Checked with Windows 7: memory across views (two's complement from Programmer, fractions kept), A-F with Shift and Caps Lock, Scientific letters with Caps Lock. Windows 7's fault with -1,5 recalled in Programmer is not copied.
 - The round choices of every view are one kind of control now (`ui/viewparts`, was `scientificparts`).
 - Tests: all 30 Windows 7 Programmer lines plus part B pass (`test_reference_programmer`, 53 rows); the related 10 tests pass with GCC 15, Clang 21 and on Debian 12 (Qt 6.4).
+
+## 2026-10-30: 0.3.9, letter keys on keyboards without Latin letters
+
+- Measured on the Windows 7 Calculator with a Russian layout (only for the calculator, restored afterwards): every letter shortcut keeps working by key position (reference part F line 5).
+- Chrono Calc read the typed letter, so on Russian, Greek or Arabic its letter keys and Ctrl letters did nothing. Now a letter of another script is read as the US letter at its key's place (D-022); Latin layouts unchanged.
+- Two fresh reviews: the position is only read where its code is known (Linux XKB: scan code plus 8; Windows: the scan code); Thai keys that type a mark are covered; with Ctrl and two layouts (German and Russian) Qt gives the other layout's Latin letter, so the layout's own key symbol tells the script. Not measured: keys of another script that type no letter (Greek Q types ;).
+- Tests: `aKeyboardWithoutLatinLettersKeepsTheLetterKeys` (shown to fail on 0.3.8) and `eachLetterKeyGivesTheLatinLetterAtItsPlace`; the related tests pass with GCC 15, Clang 21 and on Debian 12 (Qt 6.4).

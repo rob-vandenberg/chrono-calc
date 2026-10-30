@@ -2,13 +2,17 @@
 
 #include "core/view.h"
 
+#include <cstdint>
+#include <initializer_list>
 #include <optional>
 #include <string_view>
+#include <utility>
 
 // --- Version ------------------------------------------------------------
-// src/core/keys.cpp 0.3.8
+// src/core/keys.cpp 0.3.9
 
 // --- Version history ----------------------------------------------------
+// v0.3.9: The letter at a key's position, for keyboards without Latin letters
 // v0.3.8: The keys of the Programmer view: & | ^ ~ < > % ( ), a to f, j and k, F2 to F8 and F12
 // v0.2.7: The keys of the Scientific view: letters, ( ) # ! ;, F3 to F5, Ctrl+Y/G/B/S/O/T
 // v0.1.6: The keys without a character (Escape, Delete, Backspace, F9) and the Ctrl keys of the memory
@@ -199,6 +203,24 @@ std::optional<std::string_view> commandForControlLetter(char32_t letter, View vi
     case U'T': return "tanh";
     default: return std::nullopt;
     }
+}
+
+std::optional<char32_t> latinLetterAtScanCode(std::uint32_t scanCode)
+{
+    // The three letter rows of the US keyboard, from the scan code of their first key
+    constexpr std::u32string_view topRow = U"qwertyuiop";
+    constexpr std::u32string_view middleRow = U"asdfghjkl";
+    constexpr std::u32string_view bottomRow = U"zxcvbnm";
+    constexpr std::uint32_t topStart = 0x10;
+    constexpr std::uint32_t middleStart = 0x1E;
+    constexpr std::uint32_t bottomStart = 0x2C;
+    for (const auto& [start, row] : {std::pair{topStart, topRow}, std::pair{middleStart, middleRow},
+                                     std::pair{bottomStart, bottomRow}}) {
+        if (scanCode >= start && scanCode - start < row.size()) {
+            return row[scanCode - start];
+        }
+    }
+    return std::nullopt;
 }
 
 }  // namespace chrono_calc

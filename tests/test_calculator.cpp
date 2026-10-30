@@ -10,6 +10,7 @@
 #include "Header Files/EngineStrings.h"
 
 #include <array>
+#include <cstdint>
 #include <initializer_list>
 #include <optional>
 #include <utility>
@@ -17,9 +18,10 @@
 #include <string_view>
 
 // --- Version ------------------------------------------------------------
-// tests/test_calculator.cpp 0.3.8
+// tests/test_calculator.cpp 0.3.9
 
 // --- Version history ----------------------------------------------------
+// v0.3.9: The Latin letter at a key's position
 // v0.3.8: The Programmer keys (characters, F2 to F8 and F12)
 // v0.2.7: The Scientific keys (characters, F3 to F5, Ctrl letters); Scientific commands do nothing in Standard
 // v0.1.6: The keys without a character and the Ctrl keys of the memory; view.basic changes nothing
@@ -187,6 +189,25 @@ private slots:
         for (const Key key : {Key::Escape, Key::Delete, Key::Backspace, Key::Enter, Key::F9}) {
             QVERIFY(chrono_calc::findCommand(chrono_calc::commandForKey(key).value_or("")).has_value());
         }
+    }
+
+    // The 26 letter keys give the US letter at their place (PC scan codes); other keys give none
+    static void eachLetterKeyGivesTheLatinLetterAtItsPlace()
+    {
+        QCOMPARE(chrono_calc::latinLetterAtScanCode(0x10).value_or(U'?'), U'q');
+        QCOMPARE(chrono_calc::latinLetterAtScanCode(0x19).value_or(U'?'), U'p');
+        QCOMPARE(chrono_calc::latinLetterAtScanCode(0x1E).value_or(U'?'), U'a');
+        QCOMPARE(chrono_calc::latinLetterAtScanCode(0x1F).value_or(U'?'), U's');
+        QCOMPARE(chrono_calc::latinLetterAtScanCode(0x26).value_or(U'?'), U'l');
+        QCOMPARE(chrono_calc::latinLetterAtScanCode(0x2C).value_or(U'?'), U'z');
+        QCOMPARE(chrono_calc::latinLetterAtScanCode(0x32).value_or(U'?'), U'm');
+        int letters = 0;
+        for (std::uint32_t scanCode = 0; scanCode < 0x100; ++scanCode) {
+            letters += chrono_calc::latinLetterAtScanCode(scanCode).has_value() ? 1 : 0;
+        }
+        QCOMPARE(letters, 26);
+        QVERIFY(!chrono_calc::latinLetterAtScanCode(0x1A).has_value());
+        QVERIFY(!chrono_calc::latinLetterAtScanCode(0x02).has_value());
     }
 
     // A percent right after = takes the result (Windows 7, D-019); not measured, worked out by the same rule:

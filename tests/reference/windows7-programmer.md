@@ -69,3 +69,11 @@ The dot is on View > Programmer; View > History is greyed in Programmer.
    1999999999999999), while -2,5 gives -2 and -1 gives -1; ours gives -1, the same truncation as every other number.
 4. The hexadecimal digits come from the letter keys, with or without Shift and with Caps Lock; in Scientific the letters
    work with Caps Lock on, not with Shift.
+5. On a Russian keyboard layout (measured 2026-10-30, Russian active only for the calculator) every letter shortcut
+   keeps working, because Windows 7 reads the key, whose virtual key stays at its Latin place (the S key, scan code
+   0x1F, is VK S and types "ы"): 30 then S gives 0,5 and sind(30); Ctrl+M stores 7 (M shows), Ctrl+R recalls 7, Ctrl+L
+   clears the memory; A to F (ф и с в у а) in Hex give ABCDEF. C alone is not Clear in Standard, as on a Latin layout.
+6. Greek and Hebrew (measured 2026-10-30, the same way): a key's shortcut on its Latin place wins; only where the view
+   has no shortcut for that letter does the typed character count. Greek Q types ";": Scientific 3 then Q gives 9 and
+   sqr(3) (x², not Int); Standard 8 then Q does nothing. Hebrew Q types "/": Standard 8 Q 2 Enter gives 4 (8 / shows);
+   Scientific 3 then Q gives 9 and sqr(3), no divide; S (ד) is sin (30 gives 0,5 and sind(30)); A (ש) in Hex gives A.

@@ -1,6 +1,8 @@
 #include <QAction>
 #include <QCoreApplication>
+#include <QEvent>
 #include <QGuiApplication>
+#include <QKeyEvent>
 #include <QKeySequence>
 #include <QList>
 #include <QMenu>
@@ -15,6 +17,7 @@
 #include <QStringList>
 #include <QTemporaryDir>
 #include <QTest>
+#include <QWidget>
 
 #include "core/enginetexts.h"
 #include "ui/calcbutton.h"
@@ -23,13 +26,15 @@
 #include "ui/viewparts.h"
 
 #include <algorithm>
+#include <cstdint>
 #include <string>
 #include <memory>
 
 // --- Version ------------------------------------------------------------
-// tests/test_mainwindow.cpp 0.3.8
+// tests/test_mainwindow.cpp 0.3.9
 
 // --- Version history ----------------------------------------------------
+// v0.3.9: A Russian keyboard keeps the letter keys and Ctrl letters; AZERTY keeps its own letters
 // v0.3.8: The Programmer view: its size, the bases, the bit display and its clicks, the greyed digits
 // v0.2.7: The Scientific view: switching, its size, keys, Inv labels, toggles, angle units, bracket counter, the
 //         remembered view; Standard's button faces
@@ -86,6 +91,18 @@ std::unique_ptr<chrono_calc::MainWindow> openWindow()
         return nullptr;
     }
     return window;
+}
+
+// A key pressed and let go as the keyboard of Linux gives it: Qt's key, the typed text, the XKB key code, which is
+// the PC scan code plus 8, and the layout's key symbol (0: none given)
+void pressKey(QWidget* widget, int key, const QString& text, std::uint32_t scanCode,
+              Qt::KeyboardModifiers modifiers = Qt::NoModifier, std::uint32_t keySymbol = 0)
+{
+    constexpr std::uint32_t xkbOffset = 8;
+    QKeyEvent press(QEvent::KeyPress, key, modifiers, scanCode + xkbOffset, keySymbol, 0, text);
+    QCoreApplication::sendEvent(widget, &press);
+    QKeyEvent release(QEvent::KeyRelease, key, modifiers, scanCode + xkbOffset, keySymbol, 0, text);
+    QCoreApplication::sendEvent(widget, &release);
 }
 
 }  // namespace
@@ -226,6 +243,55 @@ private slots:
         QCOMPARE(displayOf(*window)->number(), QStringLiteral("7"));
         QTest::keyClick(window->centralWidget(), Qt::Key_L, Qt::ControlModifier);
         QVERIFY(!displayOf(*window)->memoryMarkShown());
+    }
+
+    // On a Russian keyboard the letter keys keep their commands by position, as in Windows 7 (reference part F):
+    // Ctrl+M (types ь) stores, S (ы) is sin, A and B (ф и) are hexadecimal digits; AZERTY keeps its own letters
+    static void aKeyboardWithoutLatinLettersKeepsTheLetterKeys()
+    {
+        const auto window = openWindow();
+        QVERIFY(window);
+        QWidget* view = window->centralWidget();
+        QTest::keyClicks(view, QStringLiteral("7"));
+        pressKey(view, 0x42C, QString(), 0x32, Qt::ControlModifier);
+        QVERIFY(displayOf(*window)->memoryMarkShown());
+        pressKey(view, 0x414, QString(), 0x26, Qt::ControlModifier);
+        QVERIFY(!displayOf(*window)->memoryMarkShown());
+        QTest::keyClick(view, Qt::Key_2, Qt::AltModifier);
+        QTest::keyClicks(view, QStringLiteral("30"));
+        pressKey(view, 0x42B, QStringLiteral("\u044B"), 0x1F);
+        QCOMPARE(displayOf(*window)->number(), QStringLiteral("0,5"));
+        QCOMPARE(displayOf(*window)->expression(), QStringLiteral("sind(30)"));
+        // German and Russian, Russian in use: Ctrl+я comes as Ctrl+Y (Qt takes German's letter) with Cyrillic's key
+        // symbol; Windows 7 reads the key's place, Z: nothing, not the y-th root (Ctrl+Y)
+        QTest::keyClick(view, Qt::Key_Escape);
+        QTest::keyClicks(view, QStringLiteral("8"));
+        pressKey(view, Qt::Key_Y, QString(), 0x2C, Qt::ControlModifier, 0x6D1);
+        QCOMPARE(displayOf(*window)->expression(), QString());
+        pressKey(view, Qt::Key_Y, QString(), 0x15, Qt::ControlModifier, 0x6CE);
+        QCOMPARE(displayOf(*window)->expression(), QStringLiteral("8 yroot"));
+        QTest::keyClick(view, Qt::Key_3, Qt::AltModifier);
+        QTest::keyClick(view, Qt::Key_F5);
+        pressKey(view, 0x424, QStringLiteral("\u0444"), 0x1E);
+        pressKey(view, 0x418, QStringLiteral("\u0438"), 0x30);
+        QCOMPARE(displayOf(*window)->number(), QStringLiteral("AB"));
+        // A Russian key off the 26 letter places (х) and a key without its place give nothing
+        pressKey(view, 0x425, QStringLiteral("\u0445"), 0x1A);
+        pressKey(view, 0x421, QStringLiteral("\u0441"), 0);
+        QCOMPARE(displayOf(*window)->number(), QStringLiteral("AB"));
+        // Thai: the A key (\u0E1F) is A, the J key, which types a mark (\u0E48), is RoL: A becomes 14
+        QTest::keyClick(view, Qt::Key_Escape);
+        pressKey(view, 0xE1F, QStringLiteral("\u0E1F"), 0x1E);
+        QCOMPARE(displayOf(*window)->number(), QStringLiteral("A"));
+        pressKey(view, 0xE48, QStringLiteral("\u0E48"), 0x24);
+        QCOMPARE(displayOf(*window)->number(), QStringLiteral("14"));
+        // AZERTY: the key at the place of the US Q types a and stays A; Ctrl+M of AZERTY (at the US ; place) stores
+        QTest::keyClick(view, Qt::Key_Escape);
+        pressKey(view, Qt::Key_A, QStringLiteral("a"), 0x10);
+        QCOMPARE(displayOf(*window)->number(), QStringLiteral("A"));
+        pressKey(view, Qt::Key_M, QString(), 0x27, Qt::ControlModifier);
+        QVERIFY(displayOf(*window)->memoryMarkShown());
+        QTest::keyClick(view, Qt::Key_L, Qt::ControlModifier);
     }
 
     // A typed key shows its button pressed for a moment

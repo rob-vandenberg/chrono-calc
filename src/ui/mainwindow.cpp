@@ -2,10 +2,12 @@
 
 #include <QAction>
 #include <QActionGroup>
+#include <QChar>
 #include <QCloseEvent>
 #include <QGuiApplication>
 #include <QKeyEvent>
 #include <QKeySequence>
+#include <QLatin1String>
 #include <QLayout>
 #include <QLinearGradient>
 #include <QLocale>
@@ -36,15 +38,17 @@
 #include "ui/look.h"
 #include "ui/viewparts.h"
 
+#include <cstdint>
 #include <map>
 #include <optional>
 #include <string>
 #include <string_view>
 
 // --- Version ------------------------------------------------------------
-// src/ui/mainwindow.cpp 0.3.8
+// src/ui/mainwindow.cpp 0.3.9
 
 // --- Version history ----------------------------------------------------
+// v0.3.9: A letter of another script (Russian, Greek, Arabic) is read as the Latin letter at its key's position
 // v0.3.8: The Programmer view: its size, the bases and word sizes, the bit display, the digits each base allows
 // v0.2.7: The Scientific view; View > Standard and Scientific switch the buttons and the window size; the view is
 //         remembered; Inv labels, the toggles, the angle units and the bracket counter follow the calculator (D-020)
@@ -58,6 +62,7 @@ namespace {
 
 const QString positionKey = QStringLiteral("window/position");
 const QString viewKey = QStringLiteral("window/view");
+
 const QString scientificName = QStringLiteral("scientific");
 const QString programmerName = QStringLiteral("programmer");
 const QString standardName = QStringLiteral("standard");
@@ -104,6 +109,65 @@ protected:
 QRect toRect(Rectangle rectangle)
 {
     return {rectangle.left, rectangle.top, rectangle.width, rectangle.height};
+}
+
+// Whether a character is a letter or mark of a script other than Latin (Cyrillic, Greek, Thai, Arabic)
+bool isOtherScriptLetter(char32_t character)
+{
+    if (character == 0 || character > 0x10FFFF || !(QChar::isLetter(character) || QChar::isMark(character))) {
+        return false;
+    }
+    const QChar::Script script = QChar::script(character);
+    return script != QChar::Script_Latin && script != QChar::Script_Common && script != QChar::Script_Inherited;
+}
+
+// Whether an XKB key symbol is a letter of a script other than Latin: a Unicode symbol (0x01000000 plus the
+// character), or one of the old symbol groups of Japanese kana, Arabic, Cyrillic, Greek, Hebrew, Thai and Korean
+bool isOtherScriptKeySymbol(std::uint32_t keySymbol)
+{
+    constexpr std::uint32_t unicodeSymbols = 0x01000000;
+    if ((keySymbol & 0xFF000000) == unicodeSymbols) {
+        return isOtherScriptLetter(keySymbol & 0x00FFFFFF);
+    }
+    switch (keySymbol >> 8) {
+    case 0x04:
+    case 0x05:
+    case 0x06:
+    case 0x07:
+    case 0x0C:
+    case 0x0D:
+    case 0x0E: return true;
+    default: return false;
+    }
+}
+
+// The key a letter of another script (Russian, Greek, Thai, Arabic) stands for: the Latin letter key at its place, as
+// Windows 7 reads its letter keys by position (tests/reference/windows7-programmer.md part F); every other key, Latin
+// letters of any layout (AZERTY, QWERTZ) and other characters (the ; of the Greek Q key, not measured) included, is itself. The place
+// is the PC scan code: on Windows the native scan code itself; on Linux (XKB, also in the tests) the scan code plus 8,
+// and there the layout's own key symbol tells the script, because with Ctrl Qt gives the Latin letter of another
+// layout in use (Ctrl+я is Y with German and Russian; Windows 7 reads Z, the key's place); on any other platform the
+// key is itself.
+int latinKeyOf(const QKeyEvent& event)
+{
+    const int key = event.key();
+    const QString platform = QGuiApplication::platformName();
+    const bool xkb = platform == QLatin1String("xcb") || platform.startsWith(QLatin1String("wayland")) ||
+                     platform == QLatin1String("offscreen");
+    if (!xkb && platform != QLatin1String("windows")) {
+        return key;
+    }
+    const bool otherScript = (xkb && event.nativeVirtualKey() != 0)
+                                 ? isOtherScriptKeySymbol(event.nativeVirtualKey())
+                                 : (key > 0 && isOtherScriptLetter(static_cast<char32_t>(key)));
+    const std::uint32_t offset = xkb ? 8 : 0;
+    if (!otherScript || event.nativeScanCode() < offset) {
+        return key;
+    }
+    if (const auto letter = latinLetterAtScanCode(event.nativeScanCode() - offset)) {
+        return Qt::Key_A + static_cast<int>(*letter - U'a');
+    }
+    return key;
 }
 
 std::optional<Key> keyOf(int qtKey)
@@ -367,20 +431,21 @@ void MainWindow::keyPressEvent(QKeyEvent* event)
 {
     // The number pad and AltGr (the third character of a key) change no command
     const Qt::KeyboardModifiers modifiers = event->modifiers() & ~(Qt::KeypadModifier | Qt::GroupSwitchModifier);
+    const int qtKey = latinKeyOf(*event);
     std::optional<std::string_view> command;
     if (modifiers == Qt::ControlModifier) {
-        const QString letter = QKeySequence(event->key()).toString();
+        const QString letter = QKeySequence(qtKey).toString();
         if (letter.size() == 1) {
             command = commandForControlLetter(letter.at(0).unicode(), m_calculator.view());
         }
     } else if (modifiers == Qt::NoModifier || modifiers == Qt::ShiftModifier) {
-        if (const auto key = keyOf(event->key())) {
+        if (const auto key = keyOf(qtKey)) {
             command = commandForKey(*key, m_calculator.view());
-        } else if (event->key() >= Qt::Key_A && event->key() <= Qt::Key_Z) {
+        } else if (qtKey >= Qt::Key_A && qtKey <= Qt::Key_Z) {
             // A letter is read from its key, not its character, as Windows 7 does: without Shift it is the small
             // letter, with Shift the capital, whatever Caps Lock is (S is sin with Caps Lock on, Shift+S is nothing)
             const char32_t first = modifiers == Qt::ShiftModifier ? U'A' : U'a';
-            command = commandForCharacter(static_cast<char32_t>(first + (event->key() - Qt::Key_A)), m_calculator.view());
+            command = commandForCharacter(static_cast<char32_t>(first + (qtKey - Qt::Key_A)), m_calculator.view());
         } else if (event->text().size() == 1) {
             command = commandForCharacter(event->text().at(0).unicode(), m_calculator.view());
         }

@@ -7,9 +7,10 @@
 #include <string_view>
 
 // --- Version ------------------------------------------------------------
-// src/core/keys.h 0.3.8
+// src/core/keys.h 0.3.9
 
 // --- Version history ----------------------------------------------------
+// v0.3.9: The letter at a key's position, for keyboards without Latin letters
 // v0.3.8: The keys of the Programmer view: & | ^ ~ < > % ( ), a to f, j and k, F2 to F8 and F12
 // v0.2.7: The keys of the Scientific view: letters, ( ) # ! ;, F3 to F5, Ctrl+Y/G/B/S/O/T
 // v0.1.6: The keys without a character (Escape, Delete, Backspace, F9) and the Ctrl keys of the memory
@@ -51,5 +52,10 @@ std::optional<std::string_view> commandForKey(Key key, View view = View::Standar
 // The command of Ctrl with this letter, as in Windows 7: L = MC, R = MR, M = MS, P = M+, Q = M-; in the Scientific view
 // also Y = y√x, G = 10^x, B = ∛x, S = sinh, O = cosh, T = tanh
 std::optional<std::string_view> commandForControlLetter(char32_t letter, View view = View::Standard);
+
+// The small Latin letter of the US keyboard at the key with this PC scan code (set 1, which Linux and Windows share:
+// 0x1F is S), for a key that types a letter of another script (Russian, Greek, Arabic): Windows 7 reads its letter keys
+// by position, so there S still gives sin. Nothing for a key that is not one of the 26 letter keys.
+std::optional<char32_t> latinLetterAtScanCode(std::uint32_t scanCode);
 
 }  // namespace chrono_calc
