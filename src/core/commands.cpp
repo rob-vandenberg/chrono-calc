@@ -9,9 +9,10 @@
 #include <vector>
 
 // --- Version ------------------------------------------------------------
-// src/core/commands.cpp 0.1.6
+// src/core/commands.cpp 0.2.7
 
 // --- Version history ----------------------------------------------------
+// v0.2.7: The commands of the Scientific view (functions, brackets, Inv, the angle units, F-E, Exp, Mod)
 // v0.1.6: view.basic (View > Basic: no side panel)
 // v0.1.5: The memory commands are the engine's own (its one memory register, as in Windows 7)
 // v0.0.4: Initial: the command registry with the commands of the Standard view (D-015)
@@ -67,7 +68,36 @@ constexpr std::array registry = {
     engine("memory.store", Command::CommandSTORE),
     engine("memory.add", Command::CommandMPLUS),
     engine("memory.subtract", Command::CommandMMINUS),
+    // The Scientific view
+    engine("sin", Command::CommandSIN),
+    engine("cos", Command::CommandCOS),
+    engine("tan", Command::CommandTAN),
+    engine("sinh", Command::CommandSINH),
+    engine("cosh", Command::CommandCOSH),
+    engine("tanh", Command::CommandTANH),
+    engine("ln", Command::CommandLN),
+    engine("log", Command::CommandLOG),
+    engine("power_of_ten", Command::CommandPOW10),
+    engine("square", Command::CommandSQR),
+    engine("cube", Command::CommandCUB),
+    engine("cube_root", Command::CommandCUBEROOT),
+    engine("power", Command::CommandPWR),
+    engine("root", Command::CommandROOT),
+    engine("factorial", Command::CommandFAC),
+    engine("integer", Command::CommandCHOP),
+    engine("dms", Command::CommandDMS),
+    engine("pi", Command::CommandPI),
+    engine("scientific_notation", Command::CommandFE),
+    engine("exponent", Command::CommandEXP),
+    engine("modulo", Command::CommandMOD),
+    engine("open_bracket", Command::CommandOPENP),
+    engine("close_bracket", Command::CommandCLOSEP),
+    engine("angle.degrees", Command::CommandDEG),
+    engine("angle.radians", Command::CommandRAD),
+    engine("angle.grads", Command::CommandGRAD),
+    own("inverse", CommandKind::Inverse),
     own("view.standard", CommandKind::ViewStandard),
+    own("view.scientific", CommandKind::ViewScientific),
     own("view.basic", CommandKind::ViewBasic),
 };
 

@@ -12,16 +12,18 @@
 #include <QWidget>
 
 #include "core/colours.h"
-#include "core/standardlayout.h"
+#include "core/layout.h"
+#include "core/view.h"
 #include "ui/fonts.h"
 #include "ui/look.h"
 
 #include <algorithm>
 
 // --- Version ------------------------------------------------------------
-// src/ui/displaypanel.cpp 0.1.6
+// src/ui/displaypanel.cpp 0.2.7
 
 // --- Version history ----------------------------------------------------
+// v0.2.7: The measures of the current view (Standard or Scientific)
 // v0.1.6: Initial: the display of the Standard view, close to the Windows 7 Calculator (D-005, D-018)
 
 namespace chrono_calc {
@@ -36,9 +38,9 @@ constexpr double memoryMarkInkHeight = 11.0;
 constexpr int numberPixelSizeSmallest = 8;
 
 // A part of the display, from the window's measures to the panel's own coordinates
-QRect inPanel(Rectangle part)
+QRect inPanel(const ViewLayout& layout, Rectangle part)
 {
-    return {part.left - standard::displayFrame.left, part.top - standard::displayFrame.top, part.width, part.height};
+    return {part.left - layout.displayFrame.left, part.top - layout.displayFrame.top, part.width, part.height};
 }
 
 QFont withPixelSize(QFont font, int pixelSize)
@@ -53,11 +55,18 @@ QFont withPixelSize(QFont font, int pixelSize)
 // the fonts are worked out once
 DisplayPanel::DisplayPanel(QWidget* parent)
     : QWidget(parent)
+    , m_layout(&layoutOf(View::Standard))
     , m_numberFont(fontWithInkHeight(fixedWidthFont(), numberInkHeight))
     , m_expressionFont(fontWithInkHeight(fixedWidthFont(), expressionInkHeight))
     , m_memoryMarkFont(fontWithInkHeight(fixedWidthFont(), memoryMarkInkHeight))
 {
     setFocusPolicy(Qt::NoFocus);
+}
+
+void DisplayPanel::setViewLayout(const ViewLayout& layout)
+{
+    m_layout = &layout;
+    update();
 }
 
 void DisplayPanel::showValues(const QString& number, const QString& expression, bool memoryHolds)
@@ -89,7 +98,7 @@ bool DisplayPanel::memoryMarkShown() const
 
 int DisplayPanel::numberPixelSize() const
 {
-    const int width = inPanel(standard::mainNumber).width();
+    const int width = inPanel(*m_layout, m_layout->mainNumber).width();
     const int fullSize = m_numberFont.pixelSize();
     const int fullWidth = QFontMetrics(m_numberFont).horizontalAdvance(m_number);
     if (fullWidth <= width) {
@@ -129,7 +138,7 @@ void DisplayPanel::paintEvent(QPaintEvent* /*event*/)
     painter.drawRoundedRect(frame.adjusted(1.0, 1.0, -1.0, -1.0), cornerRadius - 1.0, cornerRadius - 1.0);
 
     // The expression line: when it is longer than the line, its end stays in view (the newest part)
-    const QRect expressionRect = inPanel(standard::expressionLine);
+    const QRect expressionRect = inPanel(*m_layout, m_layout->expressionLine);
     painter.setFont(m_expressionFont);
     painter.setPen(qtColour(colours::displayExpression));
     painter.drawText(expressionRect, Qt::AlignRight | Qt::AlignVCenter,
@@ -138,12 +147,12 @@ void DisplayPanel::paintEvent(QPaintEvent* /*event*/)
     if (m_memoryHolds) {
         painter.setFont(m_memoryMarkFont);
         painter.setPen(qtColour(colours::displayMemoryMark));
-        painter.drawText(inPanel(standard::memoryMark), Qt::AlignCenter, QStringLiteral("M"));
+        painter.drawText(inPanel(*m_layout, m_layout->memoryMark), Qt::AlignCenter, QStringLiteral("M"));
     }
 
     painter.setFont(withPixelSize(m_numberFont, numberPixelSize()));
     painter.setPen(qtColour(colours::displayNumber));
-    painter.drawText(inPanel(standard::mainNumber), Qt::AlignRight | Qt::AlignVCenter, m_number);
+    painter.drawText(inPanel(*m_layout, m_layout->mainNumber), Qt::AlignRight | Qt::AlignVCenter, m_number);
 }
 
 }  // namespace chrono_calc

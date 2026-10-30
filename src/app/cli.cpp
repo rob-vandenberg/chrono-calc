@@ -9,9 +9,10 @@
 #include <string_view>
 
 // --- Version ------------------------------------------------------------
-// src/app/cli.cpp 0.0.4
+// src/app/cli.cpp 0.2.7
 
 // --- Version history ----------------------------------------------------
+// v0.2.7: Typed characters are read in the calculator's current view (the Scientific keys)
 // v0.0.4: Initial: runs key presses and commands without a screen and prints what the calculator shows
 
 // chrono-calc-cli: for tests, AI agents and quick result checks (AGENTS.md 4.3). Each argument is a command id
@@ -49,7 +50,7 @@ bool runArgument(chrono_calc::Calculator& calculator, std::string_view argument)
         return calculator.run(argument);
     }
     for (const char character : argument) {
-        const auto command = chrono_calc::commandForCharacter(static_cast<unsigned char>(character));
+        const auto command = chrono_calc::commandForCharacter(static_cast<unsigned char>(character), calculator.view());
         if (!command) {
             std::cerr << "cannot read '" << character << "' in " << argument << '\n';
             return false;

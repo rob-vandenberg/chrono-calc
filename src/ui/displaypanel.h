@@ -4,12 +4,15 @@
 #include <QString>
 #include <QWidget>
 
+#include "core/layout.h"
+
 class QPaintEvent;
 
 // --- Version ------------------------------------------------------------
-// src/ui/displaypanel.h 0.1.6
+// src/ui/displaypanel.h 0.2.7
 
 // --- Version history ----------------------------------------------------
+// v0.2.7: The measures of the current view (Standard or Scientific)
 // v0.1.6: Initial: the display of the Standard view, close to the Windows 7 Calculator (D-005, D-018)
 
 namespace chrono_calc {
@@ -23,6 +26,9 @@ class DisplayPanel : public QWidget
 public:
     explicit DisplayPanel(QWidget* parent);
 
+    // The measures of the view the display belongs to (its frame, the expression line, the M and the number)
+    void setViewLayout(const ViewLayout& layout);
+
     void showValues(const QString& number, const QString& expression, bool memoryHolds);
 
     [[nodiscard]] QString number() const;
@@ -35,6 +41,7 @@ protected:
     void paintEvent(QPaintEvent* event) override;
 
 private:
+    const ViewLayout* m_layout;
     QFont m_numberFont;
     QFont m_expressionFont;
     QFont m_memoryMarkFont;

@@ -2,6 +2,7 @@
 
 #include "core/commands.h"
 #include "core/enginetexts.h"
+#include "core/view.h"
 
 #include "CalcManager/CalculatorHistory.h"
 #include "CalcManager/Command.h"
@@ -21,9 +22,11 @@
 #include <vector>
 
 // --- Version ------------------------------------------------------------
-// src/core/calculator.cpp 0.1.6
+// src/core/calculator.cpp 0.2.7
 
 // --- Version history ----------------------------------------------------
+// v0.2.7: The Scientific view: its own engine with precedence and 32 digits, the one memory shared; Inv, the angle
+//         units, F-E, brackets; the expression line from the engine as Windows 7 shows it (D-020)
 // v0.1.6: view.standard and view.basic change nothing while the calculator is already in Standard and Basic, as in
 //         Windows 7; percent right after = takes the result: 2*3=5% is 6 * 5/100 = 0.3 (Windows 7)
 // v0.1.5: Drives the engine directly (its one memory register is Windows 7's memory); Windows 7's expression line and
@@ -36,6 +39,8 @@ namespace {
 
 // Windows 10's Standard precision, which Windows 7 shows as well (16 digits: 1/3 = 0.3333333333333333)
 constexpr int32_t standardPrecision = 16;
+// The Scientific view shows 32 digits, in Windows 7 as in Windows 10
+constexpr int32_t scientificPrecision = 32;
 constexpr std::size_t historySize = 20;
 
 bool isBinaryOperator(std::uintptr_t opCode)
@@ -52,6 +57,79 @@ wchar_t operatorCharacter(std::uintptr_t opCode)
     case IDC_MUL: return L'*';
     default: return L'/';
     }
+}
+
+// The functions that have an inverse form under Inv in Windows 7 (sin gives sin⁻¹, ln gives eˣ, Int gives Frac, dms
+// gives deg, pi gives 2*pi); the engine gives that form itself when its Inv is set, and resets its Inv afterwards
+bool hasInverseForm(std::uintptr_t opCode)
+{
+    switch (opCode) {
+    case IDC_SIN:
+    case IDC_COS:
+    case IDC_TAN:
+    case IDC_SINH:
+    case IDC_COSH:
+    case IDC_TANH:
+    case IDC_LN:
+    case IDC_CHOP:
+    case IDC_DMS:
+    case IDC_PI:
+        return true;
+    default:
+        return false;
+    }
+}
+
+// The commands only the Scientific view has
+bool isScientificOnly(std::uintptr_t opCode)
+{
+    switch (opCode) {
+    case IDC_SIN:
+    case IDC_COS:
+    case IDC_TAN:
+    case IDC_SINH:
+    case IDC_COSH:
+    case IDC_TANH:
+    case IDC_LN:
+    case IDC_LOG:
+    case IDC_POW10:
+    case IDC_SQR:
+    case IDC_CUB:
+    case IDC_CUBEROOT:
+    case IDC_PWR:
+    case IDC_ROOT:
+    case IDC_FAC:
+    case IDC_CHOP:
+    case IDC_DMS:
+    case IDC_PI:
+    case IDC_FE:
+    case IDC_EXP:
+    case IDC_MOD:
+    case IDC_OPENP:
+    case IDC_CLOSEP:
+    case IDC_DEG:
+    case IDC_RAD:
+    case IDC_GRAD:
+        return true;
+    default:
+        return false;
+    }
+}
+
+// Windows 7 writes brackets tight against what they hold: "(2 +", "((", "(2 + 3)"
+std::wstring tightBrackets(const std::wstring& text)
+{
+    std::wstring result;
+    for (const wchar_t character : text) {
+        if (character == L' ' && !result.empty() && result.back() == L'(') {
+            continue;
+        }
+        if (character == L')' && !result.empty() && result.back() == L' ') {
+            result.pop_back();
+        }
+        result += character;
+    }
+    return result;
 }
 
 std::wstring trimmed(const std::wstring& text)
@@ -92,9 +170,15 @@ public:
                               const std::shared_ptr<std::vector<std::shared_ptr<IExpressionCommand>>>& commands) override
     {
         m_tail.clear();
+        m_full.clear();
         if (!tokens) {
             return;
         }
+        std::wstring full;
+        for (const auto& token : *tokens) {
+            full += token.first;
+        }
+        m_full = trimmed(full);
         std::size_t start = 0;
         for (std::size_t index = 0; index < tokens->size(); ++index) {
             const int command = (*tokens)[index].second;
@@ -110,9 +194,13 @@ public:
         m_tail = trimmed(tail);
     }
 
+    void SetParenthesisNumber(unsigned int count) override
+    {
+        m_openBrackets = count;
+    }
+
     // Reports the window does not use
     void SetMemorizedNumbers(const std::vector<std::wstring>& /*memorizedNumbers*/) override {}
-    void SetParenthesisNumber(unsigned int /*count*/) override {}
     void OnNoRightParenAdded() override {}
     void MaxDigitsReached() override {}
     void BinaryOperatorReceived() override {}
@@ -135,29 +223,63 @@ public:
         return m_isError;
     }
 
+    // The engine's whole expression, as its tokens give it ("2 + sind(30)")
+    [[nodiscard]] const std::wstring& full() const
+    {
+        return m_full;
+    }
+
+    [[nodiscard]] unsigned int openBrackets() const
+    {
+        return m_openBrackets;
+    }
+
 private:
     std::wstring m_primary;  // empty until the engine sends its first number
     std::wstring m_tail;
+    std::wstring m_full;
     bool m_isError = false;
+    unsigned int m_openBrackets = 0;
 };
+
+namespace {
+
+std::unique_ptr<CCalcEngine> newEngine(bool precedence, EngineTexts& texts, ICalcDisplay* display,
+                                       const std::shared_ptr<CalculationManager::CalculatorHistory>& history)
+{
+    CCalcEngine::InitialOneTimeOnlySetup(texts);  // the engine's texts and number constants; the same for every engine
+    return std::make_unique<CCalcEngine>(precedence, false, &texts, display, history);
+}
+
+}  // namespace
 
 Calculator::Calculator(Separators separators)
     : m_texts(separators)
     , m_display(std::make_unique<Display>())
-    , m_history(std::make_shared<CalculationManager::CalculatorHistory>(historySize))
+    , m_standardHistory(std::make_shared<CalculationManager::CalculatorHistory>(historySize))
+    , m_scientificHistory(std::make_shared<CalculationManager::CalculatorHistory>(historySize))
+    , m_standardEngine(newEngine(false /* left to right */, m_texts, m_display.get(), m_standardHistory))
+    , m_scientificEngine(newEngine(true /* precedence */, m_texts, m_display.get(), m_scientificHistory))
+    , m_engine(m_standardEngine.get())
 {
-    CCalcEngine::InitialOneTimeOnlySetup(m_texts);
-    m_engine = std::make_unique<CCalcEngine>(false /* left to right, as the Standard view */, false, &m_texts, m_display.get(), m_history);
     // The engine never gives m_decimalSeparator a start value (CalcEngine.h:166), and SettingsChanged() only updates the
     // decimal symbol of its input when the new one differs from that value: by chance it may not, and then "0,1" is read
     // as an overflow. Reporting another separator once and then the real one makes the engine update it in every case.
     m_texts.setSeparators(Separators{.decimal = separators.decimal == L'.' ? L',' : L'.', .thousands = separators.thousands});
-    m_engine->SettingsChanged();
+    m_scientificEngine->SettingsChanged();
+    m_standardEngine->SettingsChanged();
     m_texts.setSeparators(separators);
-    m_engine->SettingsChanged();
-    // The memory starts at 0: a recall from a memory that was never set would read nothing
+    for (CCalcEngine* engine : {m_scientificEngine.get(), m_standardEngine.get()}) {
+        engine->SettingsChanged();
+        engine->ProcessCommand(IDC_DEC);
+        engine->ChangePrecision(engine == m_scientificEngine.get() ? scientificPrecision : standardPrecision);
+        engine->UpdateMaxIntDigits();
+        engine->ProcessCommand(IDC_CLEAR);
+    }
+    // The one memory starts at 0 (a recall from a memory that was never set would read nothing); it lives in the
+    // engine of the current view and moves with a view change
     m_engine->PersistedMemObject(CalcEngine::Rational(0));
-    setStandardView();
+    m_engine->ProcessCommand(IDC_CLEAR);
 }
 
 // The engine points to the display, the texts and the history; it is declared last, so it is destroyed first
@@ -169,12 +291,38 @@ bool Calculator::run(std::string_view commandId)
     if (!target) {
         return false;
     }
-    // The calculator is in the Standard view from the start (the constructor); Windows 7 keeps the number, the
-    // expression line and the memory when Standard or Basic is chosen again. Basic only hides a side panel.
-    if (target->kind == CommandKind::ViewStandard || target->kind == CommandKind::ViewBasic) {
+    // Basic only hides a side panel. Choosing the current view again changes nothing (Windows 7).
+    switch (target->kind) {
+    case CommandKind::ViewBasic:
         return true;
+    case CommandKind::ViewStandard:
+        switchView(View::Standard);
+        return true;
+    case CommandKind::ViewScientific:
+        switchView(View::Scientific);
+        return true;
+    case CommandKind::Inverse:
+        // Not while an error shows: the engine then takes only C and CE
+        if (m_view == View::Scientific && !isError()) {
+            m_inverse = !m_inverse;
+        }
+        return true;
+    case CommandKind::Engine:
+        break;
     }
     const auto opCode = static_cast<std::uintptr_t>(target->engineCommand);
+    // While an error shows, the engine takes only C and CE (scicomm.cpp); every other key changes nothing, so neither
+    // the switches nor the expression line change either (passing it on would make the engine empty its expression)
+    if (isError() && opCode != IDC_CLEAR && opCode != IDC_CENTR) {
+        return true;
+    }
+    if (m_view == View::Scientific) {
+        runScientific(opCode);
+        return true;
+    }
+    if (isScientificOnly(opCode)) {
+        return true;  // not in the Standard view: like a key Windows 7 has no button for there
+    }
     if (isBinaryOperator(opCode)) {
         binaryOperator(opCode);
         return true;
@@ -235,6 +383,10 @@ std::wstring Calculator::display() const
 
 std::wstring Calculator::expression() const
 {
+    if (m_view == View::Scientific) {
+        // The engine's own expression with Windows 7's names; empty after =, but kept when = ends in an error ("1 /")
+        return m_afterEquals ? std::wstring() : tightBrackets(m_display->full());
+    }
     std::wstring current = m_percentText.empty() ? m_display->tail() : m_percentText;
     if (m_lastWasOperator || m_afterEquals) {
         current.clear();
@@ -255,12 +407,52 @@ bool Calculator::hasMemory()
     return memoryValue() != CalcEngine::Rational(0);
 }
 
-void Calculator::setStandardView()
+View Calculator::view() const
 {
-    m_engine->ProcessCommand(IDC_DEC);
-    m_engine->ProcessCommand(IDC_CLEAR);
-    m_engine->ChangePrecision(standardPrecision);
-    m_engine->UpdateMaxIntDigits();
+    return m_view;
+}
+
+bool Calculator::isInverse() const
+{
+    return m_inverse;
+}
+
+AngleUnit Calculator::angleUnit() const
+{
+    return m_angleUnit;
+}
+
+bool Calculator::isScientificNotation() const
+{
+    return m_scientificNotation;
+}
+
+unsigned int Calculator::openBrackets() const
+{
+    return m_display->openBrackets();
+}
+
+bool Calculator::isAvailable(View view, std::string_view commandId)
+{
+    const auto target = findCommand(commandId);
+    if (!target) {
+        return false;
+    }
+    if (target->kind == CommandKind::Inverse) {
+        return view == View::Scientific;
+    }
+    if (target->kind != CommandKind::Engine) {
+        return true;
+    }
+    const auto opCode = static_cast<std::uintptr_t>(target->engineCommand);
+    if (view == View::Scientific) {
+        return opCode != IDC_PERCENT;
+    }
+    return !isScientificOnly(opCode);
+}
+
+void Calculator::resetWrapperState()
+{
     m_chain.clear();
     m_pendingOperator = 0;
     m_leftValue.reset();
@@ -270,6 +462,71 @@ void Calculator::setStandardView()
     m_result.reset();
 }
 
+// Windows 7 clears the display and the expression line on a view change, keeps the memory, and starts the Scientific
+// view in Degrees with Inv and F-E off
+void Calculator::switchView(View view)
+{
+    if (view == m_view) {
+        return;
+    }
+    const CalcEngine::Rational memory = memoryValue();
+    // The engine takes nothing but C while it shows an error, so it is cleared before F-E and the unit are reset
+    m_scientificEngine->ProcessCommand(IDC_CLEAR);
+    if (m_scientificNotation) {
+        m_scientificEngine->ProcessCommand(IDC_FE);
+    }
+    m_scientificEngine->ProcessCommand(IDC_DEG);
+    m_inverse = false;
+    m_angleUnit = AngleUnit::Degrees;
+    m_scientificNotation = false;
+    m_view = view;
+    m_engine = view == View::Scientific ? m_scientificEngine.get() : m_standardEngine.get();
+    m_engine->PersistedMemObject(memory);
+    resetWrapperState();
+    m_engine->ProcessCommand(IDC_CLEAR);
+}
+
+void Calculator::runScientific(std::uintptr_t opCode)
+{
+    if (opCode == IDC_PERCENT) {
+        return;  // Windows 7 greys % in the Scientific view
+    }
+    switch (opCode) {
+    case IDC_DEG: m_angleUnit = AngleUnit::Degrees; break;
+    case IDC_RAD: m_angleUnit = AngleUnit::Radians; break;
+    case IDC_GRAD: m_angleUnit = AngleUnit::Grads; break;
+    default: break;
+    }
+    if (m_inverse && hasInverseForm(opCode)) {
+        runEngine(IDC_INV);  // the engine gives the inverse form and turns its own Inv off again
+        m_inverse = false;
+    }
+    if (opCode == IDC_CLEAR || opCode == IDC_CENTR) {
+        m_inverse = false;  // C and CE turn Inv off (Windows 7)
+    }
+    // C (also CE while an error shows, which the engine takes as C) turns F-E off; CE keeps it (Windows 7). F-E is
+    // turned off after the clear, when the engine takes commands again.
+    const bool clears = opCode == IDC_CLEAR || (opCode == IDC_CENTR && isError());
+    if (opCode == IDC_FE) {
+        m_scientificNotation = !m_scientificNotation;
+    }
+    runEngine(opCode);
+    if (clears) {
+        if (m_scientificNotation) {
+            runEngine(IDC_FE);
+            m_scientificNotation = false;
+        }
+        resetWrapperState();
+        return;
+    }
+    if (opCode == IDC_EQU) {
+        m_afterEquals = !isError();
+    } else if (opCode != IDC_STORE && opCode != IDC_MCLEAR && opCode != IDC_MPLUS && opCode != IDC_MMINUS && opCode != IDC_FE
+               && opCode != IDC_DEG && opCode != IDC_RAD && opCode != IDC_GRAD) {
+        m_afterEquals = false;
+    }
+}
+
 void Calculator::runEngine(std::uintptr_t opCode)
 {
     m_engine->ProcessCommand(opCode);
@@ -277,10 +534,6 @@ void Calculator::runEngine(std::uintptr_t opCode)
 
 void Calculator::binaryOperator(std::uintptr_t opCode)
 {
-    if (isError()) {
-        runEngine(opCode);
-        return;
-    }
     if (m_lastWasOperator && !m_chain.empty()) {
         // Another operator right after one replaces it, in the engine and on the expression line
         m_chain.back() = operatorCharacter(opCode);
@@ -298,6 +551,7 @@ void Calculator::binaryOperator(std::uintptr_t opCode)
     m_percentText.clear();
     m_result.reset();
     // The left value of multiply and divide, for a Windows 7 percent: the engine shows it as its current value now
+    // (unless the operator itself ended in an error, as 1/0 * does)
     if ((opCode == IDC_MUL || opCode == IDC_DIV) && !isError()) {
         m_leftValue = currentValue();
     } else {
@@ -312,7 +566,7 @@ void Calculator::percent()
 {
     const bool afterResult = m_pendingOperator == 0 && m_result.has_value();
     const std::optional<CalcEngine::Rational> left = afterResult ? m_result : m_leftValue;
-    if (isError() || !left.has_value() || (!afterResult && m_pendingOperator != IDC_MUL && m_pendingOperator != IDC_DIV)) {
+    if (!left.has_value() || (!afterResult && m_pendingOperator != IDC_MUL && m_pendingOperator != IDC_DIV)) {
         runEngine(IDC_PERCENT);
         m_lastWasOperator = false;
         m_percentText.clear();

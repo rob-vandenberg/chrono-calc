@@ -1,10 +1,11 @@
 cmake_minimum_required(VERSION 3.25)
-project(chrono-calc VERSION 0.1.6 LANGUAGES CXX)
+project(chrono-calc VERSION 0.2.7 LANGUAGES CXX)
 
 # --- Version ------------------------------------------------------------
-# CMakeLists.txt 0.1.6
+# CMakeLists.txt 0.2.7
 
 # --- Version history ----------------------------------------------------
+# v0.2.7: M2 (versions 0.2.z): the Scientific view
 # v0.1.6: The Standard view's window and the Windows 7 checks (tasks 1.1 to 1.5)
 # v0.1.5: M1 (versions 0.1.z): the core of the Standard view
 # v0.0.4: The project version for tasks 0.3 and 0.4

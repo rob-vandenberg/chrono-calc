@@ -8,9 +8,10 @@
 #include <vector>
 
 // --- Version ------------------------------------------------------------
-// src/core/commands.h 0.1.6
+// src/core/commands.h 0.2.7
 
 // --- Version history ----------------------------------------------------
+// v0.2.7: The commands of the Scientific view (functions, brackets, Inv, the angle units, F-E, Exp, Mod)
 // v0.1.6: view.basic (View > Basic: no side panel)
 // v0.1.5: The memory commands are the engine's own (its one memory register, as in Windows 7)
 // v0.0.4: Initial: the command registry with the commands of the Standard view (D-015)
@@ -22,7 +23,10 @@ enum class CommandKind : std::uint8_t
 {
     Engine,
     ViewStandard,
+    ViewScientific,
     ViewBasic,
+    // Inv: the next function that has an inverse form gives that form (Windows 7's Inv button)
+    Inverse,
 };
 
 struct CommandTarget

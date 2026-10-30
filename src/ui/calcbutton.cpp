@@ -12,15 +12,17 @@
 #include <QWidget>
 
 #include "core/colours.h"
+#include "core/layout.h"
 #include "ui/fonts.h"
 #include "ui/look.h"
 
 #include <string_view>
 
 // --- Version ------------------------------------------------------------
-// src/ui/calcbutton.cpp 0.1.6
+// src/ui/calcbutton.cpp 0.2.7
 
 // --- Version history ----------------------------------------------------
+// v0.2.7: The faces of Windows 7 (digit, function, memory, toggle), the greyed look, the label under Inv
 // v0.1.6: Initial: a calculator button in our own drawing, close to the Windows 7 Calculator (D-005, D-018)
 
 namespace chrono_calc {
@@ -28,10 +30,13 @@ namespace chrono_calc {
 namespace {
 
 constexpr double cornerRadius = 3.0;
-// The height of a digit on the label, in pixels, as in Windows 7 (tests/reference/windows7-standard.md part G)
-constexpr double labelInkHeight = 14.0;
 // How long a button looks pressed when its key is typed
 constexpr int flashMilliseconds = 100;
+
+QString fromView(std::string_view text)
+{
+    return QString::fromUtf8(text.data(), static_cast<qsizetype>(text.size()));
+}
 
 struct Face
 {
@@ -41,37 +46,41 @@ struct Face
     Colour bottom;
 };
 
-Face faceFor(bool pressed, bool hovered)
+Face restingFace(ButtonFace face, bool on)
 {
-    if (pressed) {
-        return {.border = colours::buttonPressedBorder,
-                .top = colours::buttonPressedTop,
-                .middle = colours::buttonPressedMiddle,
-                .bottom = colours::buttonPressedBottom};
+    switch (face) {
+    case ButtonFace::Digit:
+        return {.border = colours::buttonBorder, .top = colours::buttonTop, .middle = colours::buttonMiddle, .bottom = colours::buttonBottom};
+    case ButtonFace::Memory:
+        return {.border = colours::buttonBorder, .top = colours::memoryTop, .middle = colours::memoryFace, .bottom = colours::memoryBottom};
+    case ButtonFace::Toggle:
+        if (on) {
+            return {.border = colours::toggleOnBorder,
+                    .top = colours::toggleOnTop,
+                    .middle = colours::toggleOnMiddle,
+                    .bottom = colours::toggleOnBottom};
+        }
+        break;
+    case ButtonFace::Function:
+        break;
     }
-    if (hovered) {
-        return {.border = colours::buttonHoverBorder,
-                .top = colours::buttonHoverTop,
-                .middle = colours::buttonHoverMiddle,
-                .bottom = colours::buttonHoverBottom};
-    }
-    return {.border = colours::buttonBorder,
-            .top = colours::buttonTop,
-            .middle = colours::buttonMiddle,
-            .bottom = colours::buttonBottom};
+    return {.border = colours::buttonBorder, .top = colours::functionTop, .middle = colours::functionMiddle, .bottom = colours::functionBottom};
 }
 
 }  // namespace
 
-CalcButton::CalcButton(std::string_view commandId, const QString& label, QWidget* parent)
+CalcButton::CalcButton(const ButtonSpec& spec, QWidget* parent)
     : QAbstractButton(parent)
-    , m_commandId(commandId)
+    , m_commandId(spec.commandId)
+    , m_face(spec.face)
+    , m_label(fromView(spec.label))
+    , m_inverseLabel(fromView(spec.inverseLabel))
     , m_flashTimer(new QTimer(this))
 {
-    setText(label);
+    setText(m_label);
     setFocusPolicy(Qt::NoFocus);
     setAttribute(Qt::WA_Hover);
-    setFont(fontWithInkHeight(font(), labelInkHeight));
+    setFont(fontWithInkHeight(font(), spec.labelInkHeight));
     m_flashTimer->setSingleShot(true);
     m_flashTimer->setInterval(flashMilliseconds);
     connect(m_flashTimer, &QTimer::timeout, this, [this] { update(); });
@@ -93,18 +102,69 @@ bool CalcButton::looksPressed() const
     return isDown() || m_flashTimer->isActive();
 }
 
+void CalcButton::showInverse(bool inverse)
+{
+    if (m_inverseLabel.isEmpty()) {
+        return;
+    }
+    setText(inverse ? m_inverseLabel : m_label);
+}
+
+void CalcButton::showOn(bool on)
+{
+    if (on != m_on) {
+        m_on = on;
+        update();
+    }
+}
+
+bool CalcButton::isOn() const
+{
+    return m_on;
+}
+
 void CalcButton::paintEvent(QPaintEvent* /*event*/)
 {
     QPainter painter(this);
     painter.setRenderHint(QPainter::Antialiasing);
-    const bool pressed = looksPressed();
-    const Face face = faceFor(pressed, underMouse() && isEnabled());
     const QRectF outer = QRectF(rect()).adjusted(0.5, 0.5, -0.5, -0.5);
 
+    if (!isEnabled()) {
+        // Greyed: a light edge on the window's own colour, no relief
+        painter.setPen(QPen(qtColour(colours::greyedBorder), 1.0));
+        painter.setBrush(qtColour(colours::greyedFace));
+        painter.drawRoundedRect(outer, cornerRadius, cornerRadius);
+        painter.setPen(qtColour(colours::greyedText));
+        painter.drawText(rect(), Qt::AlignCenter, text());
+        return;
+    }
+
+    const bool pressed = looksPressed();
+    Face face = restingFace(m_face, m_on);
+    if (pressed) {
+        face = {.border = colours::buttonPressedBorder,
+                .top = colours::buttonPressedTop,
+                .middle = colours::buttonPressedMiddle,
+                .bottom = colours::buttonPressedBottom};
+    } else if (underMouse()) {
+        face = {.border = colours::buttonHoverBorder,
+                .top = colours::buttonHoverTop,
+                .middle = colours::buttonHoverMiddle,
+                .bottom = colours::buttonHoverBottom};
+    }
+
     QLinearGradient gradient(outer.topLeft(), outer.bottomLeft());
-    gradient.setColorAt(0.0, qtColour(face.top));
-    gradient.setColorAt(0.5, qtColour(face.middle));
-    gradient.setColorAt(1.0, qtColour(face.bottom));
+    if (m_face == ButtonFace::Memory && !pressed && !underMouse()) {
+        // The memory buttons are flat: one light line at the top, then the face
+        gradient.setColorAt(0.0, qtColour(face.top));
+        gradient.setColorAt(0.08, qtColour(face.middle));
+        gradient.setColorAt(0.9, qtColour(face.middle));
+        gradient.setColorAt(1.0, qtColour(face.bottom));
+    } else {
+        gradient.setColorAt(0.0, qtColour(face.top));
+        gradient.setColorAt(0.5, qtColour(face.middle));
+        gradient.setColorAt(1.0, qtColour(face.bottom));
+    }
     painter.setPen(QPen(qtColour(face.border), 1.0));
     painter.setBrush(gradient);
     painter.drawRoundedRect(outer, cornerRadius, cornerRadius);

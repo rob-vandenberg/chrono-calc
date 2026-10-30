@@ -7,10 +7,10 @@ How Chrono Calc is built. The design is in place before the code; parts marked *
 | Folder | What is in it |
 |---|---|
 | `third_party/calculator/` | The engine core from microsoft/calculator commit `79e1ac5`, unchanged (`CalcManager/`), with `LICENSE`, `SOURCE.md` (what was copied, left out and why), our `shim/pch.h` and `CMakeLists.txt` (D-014) |
-| `src/core/` | Plain C++ without Qt: `version` (the project version), `calculator` (the engine wrapper, D-015), `commands` (the command registry), `enginetexts` (the engine's texts), `keys` (typed characters and keys), `standardlayout` (the Standard view's measures and buttons), `menus` (View, Edit, Help), `colours` (every colour); later the side-panel calculations |
-| `src/ui/` | Qt Widgets: `mainwindow` (the window: menus, keys, the Standard view, the remembered position), `calcbutton` (our button drawing), `displaypanel` (the display), `look` (Fusion with our colours only); later the other views, the side panels, the dialogs |
+| `src/core/` | Plain C++ without Qt: `version` (the project version), `calculator` (the engine wrapper, D-015), `commands` (the command registry), `enginetexts` (the engine's texts), `keys` (typed characters and keys), `layout` (every view's measures and buttons, their faces and label sizes), `view.h` (the views and angle units), `menus` (View, Edit, Help), `colours` (every colour); later the side-panel calculations |
+| `src/ui/` | Qt Widgets: `mainwindow` (the window: menus, keys, the Standard view, the remembered position), `calcbutton` (our button drawing), `displaypanel` (the display), `look` (Fusion with our colours only), `fonts` (fonts sized by their digits), `scientificparts` (the angle units and the bracket counter); later the other views, the side panels, the dialogs |
 | `src/app/` | `main.cpp`: starts Qt, sets the look and the settings name, builds the window, nothing else; `cli.cpp`: `chrono-calc-cli`, the calculator without a screen (D-016) |
-| `tests/` | Qt Test cases, one program per file, run with CTest (20 seconds at most, no screen): `test_version`, `test_mainwindow` (the window, keys, menus, position), `test_calculator`, `test_standardview` (buttons and menus), `test_reference_standard` (Windows 7 results), `test_layers` (the layer check); `tests/engine/`: Microsoft's 71 engine tests ported to Qt Test |
+| `tests/` | Qt Test cases, one program per file, run with CTest (20 seconds at most, no screen): `test_version`, `test_mainwindow` (the window, keys, menus, position), `test_calculator`, `test_standardview` (both views' buttons and menus), `test_reference_standard` and `test_reference_scientific` (Windows 7 results), `test_layers` (the layer check); `tests/engine/`: Microsoft's 71 engine tests ported to Qt Test |
 | `packaging/` | The `.desktop` file (Calc), the AppStream metainfo, the icon, CPack settings *(planned)* |
 | `scratchpad/` | Working scripts of the sessions; git-ignored |
 
@@ -39,7 +39,7 @@ third_party  microsoft/calculator engine (unchanged)
 ## 4. The engine and its wrapper
 
 1. The engine is `CalculatorManager` (from `CalcManager`) with the arbitrary-precision number library `RatPack`. It is driven by commands (`Command::Command7`, `Command::CommandADD` and so on) and reports back through an interface (`ICalcDisplay`) with the display text, the expression and the history.
-2. `core` holds our wrapper, `Calculator` (`core/calculator.h`): its inner class `Display` implements `ICalcDisplay` and keeps what the engine reports; `Calculator` offers it as plain values (`display()`, `expression()`, `isError()`, `hasMemory()`) and runs commands by id (`run()`). No Qt type crosses into `core`.
+2. `core` holds our wrapper, `Calculator` (`core/calculator.h`), with one engine per view (D-020): its inner class `Display` implements `ICalcDisplay` and keeps what the engine reports; `Calculator` offers it as plain values (`display()`, `expression()`, `isError()`, `hasMemory()`) and runs commands by id (`run()`). No Qt type crosses into `core`.
 3. What the engine needs from Windows is supplied outside Microsoft's files, never by editing them: `third_party/calculator/shim/pch.h` and a compiler option for `Ratpack/support.cpp` (D-014).
 4. The side panels of Windows 7 that the Windows 10 engine does not have (Worksheets, parts of Date calculation) are our own code in `core`, with the formulas written down in DECISIONS.md and tested against results of the Windows 7 Calculator.
 
@@ -49,4 +49,4 @@ Every user action is a command in `core` (AGENTS.md 4.3): an id (for example `st
 
 ## 6. Settings
 
-What the Windows 7 Calculator remembers (the last view, Digit grouping, the side panel shown) is stored with `QSettings` in `~/.config/chrono-calc/chrono-calc.conf`; so far the window's position (D-018).
+What the Windows 7 Calculator remembers (the last view, Digit grouping, the side panel shown) is stored with `QSettings` in `~/.config/chrono-calc/chrono-calc.conf`; so far the window's position (D-018) and its view (D-020).

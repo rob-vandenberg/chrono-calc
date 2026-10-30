@@ -30,7 +30,7 @@ Versions (D-013): M0 is 0.0.z, M1 0.1.z, M2 0.2.z and so on; M9 finished is 1.0.
 
 | Task | What | Status |
 |---|---|---|
-| 2.1 | All Scientific buttons and keys; Degrees, Radians, Grads; Inv; F-E, dms (the engine has the functions) | todo |
+| 2.1 | All Scientific buttons and keys; Degrees, Radians, Grads; Inv; F-E, dms (the engine has the functions) | done (0.2.7, D-020): 45 Windows 7 results pass (`tests/test_reference_scientific.cpp`) |
 
 ## M3: Programmer view
 

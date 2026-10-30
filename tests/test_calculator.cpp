@@ -5,17 +5,21 @@
 #include "core/commands.h"
 #include "core/enginetexts.h"
 #include "core/keys.h"
+#include "core/view.h"
 
 #include "Header Files/EngineStrings.h"
 
+#include <array>
 #include <initializer_list>
+#include <utility>
 #include <string>
 #include <string_view>
 
 // --- Version ------------------------------------------------------------
-// tests/test_calculator.cpp 0.1.6
+// tests/test_calculator.cpp 0.2.7
 
 // --- Version history ----------------------------------------------------
+// v0.2.7: The Scientific keys (characters, F3 to F5, Ctrl letters); Scientific commands do nothing in Standard
 // v0.1.6: The keys without a character and the Ctrl keys of the memory; view.basic changes nothing
 // v0.1.5: The one memory is the engine's own register; the start value comes from the engine
 // v0.0.4: Initial: the engine wrapper, the command registry, the typed keys and the engine texts
@@ -194,6 +198,51 @@ private slots:
         QCOMPARE(text(after(calculator, {"memory.recall"})), QStringLiteral("7"));
         QCOMPARE(text(after(calculator, {"clear", "digit.2", "multiply", "digit.3", "equals", "digit.7"})), QStringLiteral("7"));
         QCOMPARE(text(after(calculator, {"clear", "digit.2", "multiply", "digit.3", "equals", "percent"})), QStringLiteral("0,36"));
+    }
+
+    // The Scientific keys of Windows 7 (windows7-scientific.md part C); none of them acts in the Standard view
+    static void theScientificKeysGiveTheirWindows7Commands()
+    {
+        using chrono_calc::View;
+        const std::array<std::pair<char32_t, const char*>, 21> characters = {{
+            {U'(', "open_bracket"}, {U')', "close_bracket"}, {U'#', "cube"}, {U'!', "factorial"}, {U';', "integer"},
+            {U'i', "inverse"}, {U's', "sin"}, {U'o', "cos"}, {U't', "tan"}, {U'n', "ln"}, {U'l', "log"}, {U'm', "dms"},
+            {U'p', "pi"}, {U'v', "scientific_notation"}, {U'x', "exponent"}, {U'e', "exponent"}, {U'y', "power"},
+            {U'q', "square"}, {U'd', "modulo"}, {U'r', "reciprocal"}, {U'@', "sqrt"}}};
+        for (const auto& [character, command] : characters) {
+            QCOMPARE(chrono_calc::commandForCharacter(character, View::Scientific).value_or(""), std::string_view(command));
+            QVERIFY(chrono_calc::findCommand(command).has_value());
+        }
+        for (const char32_t character : U"#!;sotnlmpvxyqdS%h") {
+            if (character == U'\0') {
+                continue;
+            }
+            if (character == U'S' || character == U'%' || character == U'h') {
+                QVERIFY(!chrono_calc::commandForCharacter(character, View::Scientific).has_value());
+            }
+            if (character != U'%') {
+                QVERIFY(!chrono_calc::commandForCharacter(character, View::Standard).has_value());
+            }
+        }
+        QCOMPARE(chrono_calc::commandForKey(chrono_calc::Key::F3, View::Scientific).value_or(""), "angle.degrees");
+        QCOMPARE(chrono_calc::commandForKey(chrono_calc::Key::F4, View::Scientific).value_or(""), "angle.radians");
+        QCOMPARE(chrono_calc::commandForKey(chrono_calc::Key::F5, View::Scientific).value_or(""), "angle.grads");
+        QVERIFY(!chrono_calc::commandForKey(chrono_calc::Key::F4, View::Standard).has_value());
+        const std::array<std::pair<char32_t, const char*>, 7> controls = {{{U'Y', "root"}, {U'G', "power_of_ten"}, {U'B', "cube_root"},
+                                                             {U'S', "sinh"}, {U'O', "cosh"}, {U'T', "tanh"}, {U'M', "memory.store"}}};
+        for (const auto& [letter, command] : controls) {
+            QCOMPARE(chrono_calc::commandForControlLetter(letter, View::Scientific).value_or(""), std::string_view(command));
+        }
+        QVERIFY(!chrono_calc::commandForControlLetter(U'G', View::Standard).has_value());
+    }
+
+    // A Scientific command does nothing in the Standard view (no button there; its key gives nothing)
+    static void aScientificCommandDoesNothingInStandard()
+    {
+        chrono_calc::Calculator calculator;
+        QCOMPARE(text(after(calculator, {"digit.3", "digit.0", "sin", "open_bracket", "inverse"})), QStringLiteral("30"));
+        QCOMPARE(text(calculator.expression()), QString());
+        QVERIFY(!calculator.isInverse());
     }
 
     // View > Basic only hides a side panel: the number, the expression line and the memory stay

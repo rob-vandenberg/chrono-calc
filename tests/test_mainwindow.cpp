@@ -20,14 +20,17 @@
 #include "ui/calcbutton.h"
 #include "ui/displaypanel.h"
 #include "ui/mainwindow.h"
+#include "ui/scientificparts.h"
 
 #include <algorithm>
 #include <memory>
 
 // --- Version ------------------------------------------------------------
-// tests/test_mainwindow.cpp 0.1.6
+// tests/test_mainwindow.cpp 0.2.7
 
 // --- Version history ----------------------------------------------------
+// v0.2.7: The Scientific view: switching, its size, keys, Inv labels, toggles, angle units, bracket counter, the
+//         remembered view; Standard's button faces
 // v0.1.6: The Standard view (keys typed into the view area, as the real keyboard focus does): the measures, the buttons, the keys, the menus, the fixed size and the remembered position
 // v0.0.2: Initial: the window opens with the title Chrono Calc
 
@@ -264,14 +267,16 @@ private slots:
         QCOMPARE(standard->shortcut(), QKeySequence(QStringLiteral("Alt+1")));
         const QAction* basic = actionOf(view, QStringLiteral("&Basic"));
         QVERIFY(basic != nullptr && basic->isEnabled() && basic->isChecked());
-        for (const QString& greyed : {QStringLiteral("&Scientific"), QStringLiteral("&Programmer"), QStringLiteral("St&atistics"),
+        const QAction* scientificItem = actionOf(view, QStringLiteral("&Scientific"));
+        QVERIFY(scientificItem != nullptr && scientificItem->isEnabled() && !scientificItem->isChecked());
+        QCOMPARE(scientificItem->shortcut(), QKeySequence(QStringLiteral("Alt+2")));
+        for (const QString& greyed : {QStringLiteral("&Programmer"), QStringLiteral("St&atistics"),
                                       QStringLiteral("Histor&y"), QStringLiteral("D&igit grouping"), QStringLiteral("&Unit conversion"),
                                       QStringLiteral("&Date calculation")}) {
             const QAction* action = actionOf(view, greyed);
             QVERIFY2(action != nullptr && !action->isEnabled(), qPrintable(greyed));
         }
-        const QAction* scientific = actionOf(view, QStringLiteral("&Scientific"));
-        QCOMPARE(scientific->text(), QStringLiteral("&Scientific\tAlt+2"));
+        QCOMPARE(actionOf(view, QStringLiteral("&Programmer"))->text(), QStringLiteral("&Programmer\tAlt+3"));
         const QAction* worksheets = actionOf(view, QStringLiteral("&Worksheets"));
         QVERIFY(worksheets != nullptr && worksheets->menu() != nullptr);
         QCOMPARE(worksheets->menu()->actions().size(), 4);
@@ -286,6 +291,95 @@ private slots:
         QVERIFY(help != nullptr);
         QVERIFY(!actionOf(help, QStringLiteral("&View Help"))->isEnabled());
         QVERIFY(!actionOf(help, QStringLiteral("&About Chrono Calc"))->isEnabled());
+    }
+
+    // View > Scientific: the window takes Windows 7's Scientific size, the number is cleared, the memory kept, the dot moves
+    static void scientificSwitchesTheViewAndTheSize()
+    {
+        const auto window = openWindow();
+        QVERIFY(window);
+        QTest::keyClicks(window->centralWidget(), QStringLiteral("5"));
+        QTest::keyClick(window->centralWidget(), Qt::Key_M, Qt::ControlModifier);
+        QTest::keyClicks(window->centralWidget(), QStringLiteral("12+3"));
+        const QMenu* view = menuOf(*window, QStringLiteral("&View"));
+        actionOf(view, QStringLiteral("&Scientific"))->trigger();
+        QCOMPARE(window->centralWidget()->size(), QSize(508, 331));
+        QCOMPARE(displayOf(*window)->geometry(), QRect(13, 13, 482, 63));
+        QCOMPARE(displayOf(*window)->number(), QStringLiteral("0"));
+        QCOMPARE(displayOf(*window)->expression(), QString());
+        QVERIFY(displayOf(*window)->memoryMarkShown());
+        QVERIFY(actionOf(view, QStringLiteral("&Scientific"))->isChecked());
+        QVERIFY(!actionOf(view, QStringLiteral("S&tandard"))->isChecked());
+        QTRY_COMPARE(window->findChildren<chrono_calc::CalcButton*>().size(), 52);
+        QCOMPARE(buttonOf(*window, QStringLiteral("power_of_ten"))->geometry(), QRect(208, 282, 43, 33));
+        QVERIFY(!buttonOf(*window, QStringLiteral("percent"))->isEnabled());
+        actionOf(view, QStringLiteral("S&tandard"))->trigger();
+        QCOMPARE(window->centralWidget()->size(), QSize(264, 331));
+        QTRY_COMPARE(window->findChildren<chrono_calc::CalcButton*>().size(), 28);
+        QVERIFY(buttonOf(*window, QStringLiteral("percent"))->isEnabled());
+    }
+
+    // The Scientific keys: letters for the functions, F4 for Radians, Ctrl+G for 10^x, ( ) and the bracket counter
+    static void theScientificKeysRunTheirCommands()
+    {
+        const auto window = openWindow();
+        QVERIFY(window);
+        QTest::keyClick(window->centralWidget(), Qt::Key_2, Qt::AltModifier);
+        QCOMPARE(window->centralWidget()->size(), QSize(508, 331));
+        QTest::keyClicks(window->centralWidget(), QStringLiteral("30s"));
+        QCOMPARE(displayOf(*window)->number(), QStringLiteral("0,5"));
+        QCOMPARE(displayOf(*window)->expression(), QStringLiteral("sind(30)"));
+        QTest::keyClick(window->centralWidget(), Qt::Key_Escape);
+        QTest::keyClicks(window->centralWidget(), QStringLiteral("3"));
+        QTest::keyClick(window->centralWidget(), Qt::Key_G, Qt::ControlModifier);
+        QCOMPARE(displayOf(*window)->number(), QStringLiteral("1000"));
+        QTest::keyClick(window->centralWidget(), Qt::Key_Escape);
+        QTest::keyClicks(window->centralWidget(), QStringLiteral("(2+3"));
+        QCOMPARE(window->findChild<chrono_calc::BracketCounter*>(QStringLiteral("brackets"))->text(), QStringLiteral("(=1"));
+        QTest::keyClicks(window->centralWidget(), QStringLiteral(")*4="));
+        QCOMPARE(displayOf(*window)->number(), QStringLiteral("20"));
+        QCOMPARE(window->findChild<chrono_calc::BracketCounter*>(QStringLiteral("brackets"))->text(), QString());
+        QTest::keyClick(window->centralWidget(), Qt::Key_F4);
+        QVERIFY(window->findChild<chrono_calc::AngleButton*>(QStringLiteral("angle.radians"))->isChecked());
+        QVERIFY(!window->findChild<chrono_calc::AngleButton*>(QStringLiteral("angle.degrees"))->isChecked());
+        QTest::keyClicks(window->centralWidget(), QStringLiteral("2+3%"));
+        QCOMPARE(displayOf(*window)->number(), QStringLiteral("3"));
+    }
+
+    // Inv: its button turns warm, the labels show the inverse forms, and it turns off after sin
+    static void inverseChangesTheLabelsAndEndsAfterUse()
+    {
+        const auto window = openWindow();
+        QVERIFY(window);
+        QTest::keyClick(window->centralWidget(), Qt::Key_2, Qt::AltModifier);
+        QTRY_VERIFY(buttonOf(*window, QStringLiteral("inverse")) != nullptr);
+        QTest::mouseClick(buttonOf(*window, QStringLiteral("inverse")), Qt::LeftButton);
+        QVERIFY(buttonOf(*window, QStringLiteral("inverse"))->isOn());
+        QCOMPARE(buttonOf(*window, QStringLiteral("sin"))->text(), QStringLiteral("sin\u207B\u00B9"));
+        QCOMPARE(buttonOf(*window, QStringLiteral("ln"))->text(), QStringLiteral("e\u02E3"));
+        QCOMPARE(buttonOf(*window, QStringLiteral("log"))->text(), QStringLiteral("log"));
+        QTest::keyClicks(window->centralWidget(), QStringLiteral("1"));
+        QTest::mouseClick(buttonOf(*window, QStringLiteral("sin")), Qt::LeftButton);
+        QCOMPARE(displayOf(*window)->number(), QStringLiteral("90"));
+        QVERIFY(!buttonOf(*window, QStringLiteral("inverse"))->isOn());
+        QCOMPARE(buttonOf(*window, QStringLiteral("sin"))->text(), QStringLiteral("sin"));
+        QTest::mouseClick(window->findChild<chrono_calc::AngleButton*>(QStringLiteral("angle.grads")), Qt::LeftButton);
+        QVERIFY(window->findChild<chrono_calc::AngleButton*>(QStringLiteral("angle.grads"))->isChecked());
+    }
+
+    // The window opens in the view it was closed in, as Windows 7 does
+    static void theWindowOpensInTheViewItWasClosedIn()
+    {
+        {
+            const auto window = openWindow();
+            QVERIFY(window);
+            QTest::keyClick(window->centralWidget(), Qt::Key_2, Qt::AltModifier);
+            window->close();
+        }
+        const auto window = openWindow();
+        QVERIFY(window);
+        QCOMPARE(window->centralWidget()->size(), QSize(508, 331));
+        QVERIFY(actionOf(menuOf(*window, QStringLiteral("&View")), QStringLiteral("&Scientific"))->isChecked());
     }
 
     // View > Basic changes nothing on the display

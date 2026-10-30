@@ -1,6 +1,7 @@
 #pragma once
 
 #include "core/enginetexts.h"
+#include "core/view.h"
 
 #include "CalcManager/CalculatorHistory.h"
 #include "Header Files/CalcEngine.h"
@@ -13,9 +14,11 @@
 #include <string_view>
 
 // --- Version ------------------------------------------------------------
-// src/core/calculator.h 0.1.6
+// src/core/calculator.h 0.2.7
 
 // --- Version history ----------------------------------------------------
+// v0.2.7: The Scientific view: its own engine with precedence and 32 digits, the one memory shared; Inv, the angle
+//         units, F-E, brackets; the expression line from the engine as Windows 7 shows it (D-020)
 // v0.1.6: The last result, for a percent right after = (Windows 7)
 // v0.1.5: Drives the engine directly (its one memory register is Windows 7's memory); Windows 7's expression line and
 //         percent; the separators of the regional settings (D-017)
@@ -46,10 +49,22 @@ public:
     // Whether a number other than 0 is in the one memory (the display shows "M" then)
     [[nodiscard]] bool hasMemory();
 
+    [[nodiscard]] View view() const;
+    // The Scientific view's switches: Inv, the angle unit, F-E (numbers shown as 1,2e+3)
+    [[nodiscard]] bool isInverse() const;
+    [[nodiscard]] AngleUnit angleUnit() const;
+    [[nodiscard]] bool isScientificNotation() const;
+    // How many brackets are open (the Scientific view shows "(=1")
+    [[nodiscard]] unsigned int openBrackets() const;
+    // Whether the command does something in the current view (Windows 7 greys its button otherwise)
+    [[nodiscard]] static bool isAvailable(View view, std::string_view commandId);
+
 private:
     class Display;
 
-    void setStandardView();
+    void switchView(View view);
+    void resetWrapperState();
+    void runScientific(std::uintptr_t opCode);
     void runEngine(std::uintptr_t opCode);
     void binaryOperator(std::uintptr_t opCode);
     void percent();
@@ -62,8 +77,17 @@ private:
 
     EngineTexts m_texts;
     std::unique_ptr<Display> m_display;
-    std::shared_ptr<CalculationManager::CalculatorHistory> m_history;
-    std::unique_ptr<CCalcEngine> m_engine;
+    std::shared_ptr<CalculationManager::CalculatorHistory> m_standardHistory;
+    std::shared_ptr<CalculationManager::CalculatorHistory> m_scientificHistory;
+    // One engine per view, as Windows 10 has: Standard calculates from left to right with 16 digits, Scientific with
+    // precedence and 32 digits. m_engine is the engine of the current view.
+    std::unique_ptr<CCalcEngine> m_standardEngine;
+    std::unique_ptr<CCalcEngine> m_scientificEngine;
+    CCalcEngine* m_engine = nullptr;
+    View m_view = View::Standard;
+    bool m_inverse = false;
+    AngleUnit m_angleUnit = AngleUnit::Degrees;
+    bool m_scientificNotation = false;
 
     // The expression line (Windows 7): the finished part ("2 + 3 *"), whether the last command was a binary operator,
     // the operator pending in the engine, and its left value while it is multiply or divide (for percent)

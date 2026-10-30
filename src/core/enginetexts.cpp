@@ -8,9 +8,11 @@
 #include <unordered_map>
 
 // --- Version ------------------------------------------------------------
-// src/core/enginetexts.cpp 0.1.5
+// src/core/enginetexts.cpp 0.2.7
 
 // --- Version history ----------------------------------------------------
+// v0.2.7: Windows 7's names of the Scientific functions (sind, asind, sinr, sing, powe, powten) and of * and /; no
+//         digit grouping, as Windows 7 starts
 // v0.1.5: Windows 7's names in the expression line (sqrt, reciproc); the separators come from the caller
 // v0.0.4: Initial: a text for every text number the engine can look up (D-015)
 
@@ -28,10 +30,10 @@ const std::unordered_map<std::wstring_view, std::wstring_view>& texts()
         {L"105", L"Not enough memory"},
         {L"107", L"Overflow"},
         {L"108", L"Result not defined"},
-        {L"11", L"÷"},
+        {L"11", L"/"},  // Windows 7 (Microsoft's: ÷)
         {L"118", L"Result not defined"},
         {L"119", L"Overflow"},
-        {L"12", L"×"},
+        {L"12", L"*"},  // Windows 7 (Microsoft's: ×)
         {L"120", L"Overflow"},
         {L"13", L"+"},
         {L"14", L"-"},
@@ -53,7 +55,7 @@ const std::unordered_map<std::wstring_view, std::wstring_view>& texts()
         {L"29", L"log"},
         {L"30", L"sqrt"},  // Windows 7 (Microsoft's: √)
         {L"35", L"dms"},
-        {L"37", L"10^"},
+        {L"37", L"powten"},  // Windows 7
         {L"38", L"%"},
         {L"4", L"."},
         {L"40", L"Pi"},
@@ -63,31 +65,31 @@ const std::unordered_map<std::wstring_view, std::wstring_view>& texts()
         {L"49", L")"},
         {L"6", L"AND"},
         {L"66", L"frac"},
-        {L"67", L"sin₀"},
-        {L"68", L"cos₀"},
-        {L"69", L"tan₀"},
+        {L"67", L"sind"},  // Windows 7
+        {L"68", L"cosd"},  // Windows 7
+        {L"69", L"tand"},  // Windows 7
         {L"7", L"OR"},
-        {L"70", L"sin₀⁻¹"},
-        {L"71", L"cos₀⁻¹"},
-        {L"72", L"tan₀⁻¹"},
-        {L"73", L"sinᵣ"},
-        {L"74", L"cosᵣ"},
-        {L"75", L"tanᵣ"},
-        {L"76", L"sinᵣ⁻¹"},
-        {L"77", L"cosᵣ⁻¹"},
-        {L"78", L"tanᵣ⁻¹"},
-        {L"79", L"sin₉"},
+        {L"70", L"asind"},  // Windows 7
+        {L"71", L"acosd"},  // Windows 7
+        {L"72", L"atand"},  // Windows 7
+        {L"73", L"sinr"},  // Windows 7
+        {L"74", L"cosr"},  // Windows 7
+        {L"75", L"tanr"},  // Windows 7
+        {L"76", L"asinr"},  // Windows 7
+        {L"77", L"acosr"},  // Windows 7
+        {L"78", L"atanr"},  // Windows 7
+        {L"79", L"sing"},  // Windows 7
         {L"8", L"XOR"},
-        {L"80", L"cos₉"},
-        {L"81", L"tan₉"},
-        {L"82", L"sin₉⁻¹"},
-        {L"83", L"cos₉⁻¹"},
-        {L"84", L"tan₉⁻¹"},
-        {L"85", L"sinh⁻¹"},
-        {L"86", L"cosh⁻¹"},
-        {L"87", L"tanh⁻¹"},
-        {L"88", L"e^"},
-        {L"89", L"10^"},
+        {L"80", L"cosg"},  // Windows 7
+        {L"81", L"tang"},  // Windows 7
+        {L"82", L"asing"},  // Windows 7
+        {L"83", L"acosg"},  // Windows 7
+        {L"84", L"atang"},  // Windows 7
+        {L"85", L"asinh"},  // Windows 7
+        {L"86", L"acosh"},  // Windows 7
+        {L"87", L"atanh"},  // Windows 7
+        {L"88", L"powe"},  // Windows 7
+        {L"89", L"powten"},  // Windows 7
         {L"9", L"Lsh"},
         {L"90", L"sqrt"},  // Windows 7 (Microsoft's: √)
         {L"91", L"sqr"},
@@ -197,7 +199,7 @@ std::wstring EngineTexts::GetCEngineString(std::wstring_view id)
         return {m_separators.thousands};
     }
     if (id == L"sGrouping") {
-        return L"3;0";
+        return L"0;0";  // no digit grouping: Windows 7 starts with View > Digit grouping off (1234, not 1,234)
     }
     const auto found = texts().find(id);
     return found == texts().end() ? std::wstring() : std::wstring(found->second);

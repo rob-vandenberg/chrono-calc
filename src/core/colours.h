@@ -3,9 +3,10 @@
 #include <cstdint>
 
 // --- Version ------------------------------------------------------------
-// src/core/colours.h 0.1.6
+// src/core/colours.h 0.2.7
 
 // --- Version history ----------------------------------------------------
+// v0.2.7: The faces of function, memory, toggle and greyed buttons; the angle units and the bracket counter
 // v0.1.6: Initial: the colours of the Standard view, close to the Windows 7 Calculator (D-005, D-018)
 
 namespace chrono_calc {
@@ -21,7 +22,8 @@ struct Colour
 
 // Every colour of the program lives here and nowhere else (AGENTS.md 5.6); nothing comes from the platform theme.
 // The values are those measured in the Windows 7 Calculator with the Aero look (tests/reference/windows7-standard.md
-// part G), except the menu highlight and the hover and pressed glow, which are our own close to it (D-018).
+// part G, windows7-scientific.md part E), except the menu highlight, the hover and pressed glow, the greyed label and
+// the angle circle edge, which are our own close to it (D-018, D-020).
 namespace colours {
 
 // The window behind the display and the buttons: a soft blue, lighter at the top
@@ -48,13 +50,41 @@ inline constexpr Colour displayNumber{.red = 0x33, .green = 0x33, .blue = 0x33};
 inline constexpr Colour displayExpression{.red = 0x33, .green = 0x33, .blue = 0x33};
 inline constexpr Colour displayMemoryMark{.red = 0x33, .green = 0x33, .blue = 0x33};
 
-// A button at rest: a light face, darker in the middle, with a blue-grey edge and a thin light line just inside it
+// A digit button at rest: a light face, darker in the middle, with a blue-grey edge and a thin light line just inside it
 inline constexpr Colour buttonBorder{.red = 0x87, .green = 0x97, .blue = 0xAA};
 inline constexpr Colour buttonInnerLine{.red = 0xFF, .green = 0xFF, .blue = 0xFF, .opacity = 0xA0};
 inline constexpr Colour buttonTop{.red = 0xF7, .green = 0xFB, .blue = 0xFF};
 inline constexpr Colour buttonMiddle{.red = 0xE7, .green = 0xEE, .blue = 0xF6};
-inline constexpr Colour buttonBottom{.red = 0xF2, .green = 0xFB, .blue = 0xFF};
+inline constexpr Colour buttonBottom{.red = 0xED, .green = 0xF5, .blue = 0xFB};
 inline constexpr Colour buttonText{.red = 0x1E, .green = 0x39, .blue = 0x5B};
+// A function or operator button (also C, CE, = and the Scientific functions): a darker, bluer face
+inline constexpr Colour functionTop{.red = 0xF0, .green = 0xF6, .blue = 0xFB};
+inline constexpr Colour functionMiddle{.red = 0xD4, .green = 0xE0, .blue = 0xED};
+inline constexpr Colour functionBottom{.red = 0xD7, .green = 0xE2, .blue = 0xF0};
+// A memory button: the function colours, flat, with a light first line
+inline constexpr Colour memoryTop{.red = 0xF0, .green = 0xF4, .blue = 0xF9};
+inline constexpr Colour memoryFace{.red = 0xD4, .green = 0xE0, .blue = 0xED};
+inline constexpr Colour memoryBottom{.red = 0xD7, .green = 0xE2, .blue = 0xF0};
+// A toggle that is on (Inv, F-E): a warm face
+inline constexpr Colour toggleOnBorder{.red = 0xA0, .green = 0x99, .blue = 0x74};
+inline constexpr Colour toggleOnTop{.red = 0xF0, .green = 0xE5, .blue = 0xCE};
+inline constexpr Colour toggleOnMiddle{.red = 0xE2, .green = 0xD0, .blue = 0xAE};
+inline constexpr Colour toggleOnBottom{.red = 0xE2, .green = 0xE9, .blue = 0xDF};
+// A greyed button (% in the Scientific view): a light edge on the window's own colour
+inline constexpr Colour greyedBorder{.red = 0xB4, .green = 0xC2, .blue = 0xD1};
+inline constexpr Colour greyedFace{.red = 0xD9, .green = 0xE4, .blue = 0xF1};
+inline constexpr Colour greyedText{.red = 0x8D, .green = 0x9B, .blue = 0xAB};
+// The Scientific view's angle units: a flat frame, round white choices with a dark dot on the chosen one
+inline constexpr Colour angleFrameBorder{.red = 0x86, .green = 0x96, .blue = 0xAA};
+inline constexpr Colour angleFrameFace{.red = 0xD9, .green = 0xE4, .blue = 0xF1};
+inline constexpr Colour angleText{.red = 0x1E, .green = 0x39, .blue = 0x5B};
+inline constexpr Colour angleCircle{.red = 0xFF, .green = 0xFF, .blue = 0xFF};
+inline constexpr Colour angleCircleBorder{.red = 0x8E, .green = 0x9C, .blue = 0xAD};
+inline constexpr Colour angleDot{.red = 0x33, .green = 0x33, .blue = 0x33};
+// The bracket counter "(=1": a flat cell
+inline constexpr Colour counterBorder{.red = 0x8E, .green = 0x9C, .blue = 0xAD};
+inline constexpr Colour counterFace{.red = 0xD9, .green = 0xE4, .blue = 0xF1};
+inline constexpr Colour counterText{.red = 0x1E, .green = 0x39, .blue = 0x5B};
 // A button under the mouse: a warm golden glow
 inline constexpr Colour buttonHoverBorder{.red = 0xC2, .green = 0x9B, .blue = 0x45};
 inline constexpr Colour buttonHoverTop{.red = 0xFF, .green = 0xF4, .blue = 0xD4};
