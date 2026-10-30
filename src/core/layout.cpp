@@ -7,9 +7,10 @@
 #include <string_view>
 
 // --- Version ------------------------------------------------------------
-// src/core/layout.cpp 0.4.11
+// src/core/layout.cpp 0.5.12
 
 // --- Version history ----------------------------------------------------
+// v0.5.12: The Standard and Scientific views with History shown: the list in a taller display, everything else lower
 // v0.4.11: The Statistics view: its buttons and the list inside the display (D-023)
 // v0.3.8: The Programmer view: its buttons, the bases and word sizes, the bit display; choices of any kind
 // v0.2.7: Every view's layout (Standard and Scientific); each button's face and its label under Inv (D-020)
@@ -295,6 +296,7 @@ const ViewLayout standardLayout{
     .bracketCounter = {},
     .bitDisplay = {},
     .statistics = {},
+    .history = {},
 };
 
 const ViewLayout scientificLayout{
@@ -310,6 +312,7 @@ const ViewLayout scientificLayout{
     .bracketCounter = {.left = 13, .top = 122, .width = 43, .height = 33},
     .bitDisplay = {},
     .statistics = {},
+    .history = {},
 };
 
 const ViewLayout programmerLayout{
@@ -325,6 +328,7 @@ const ViewLayout programmerLayout{
     .bracketCounter = {.left = 111, .top = 165, .width = 43, .height = 33},
     .bitDisplay = {.frame = {.left = 13, .top = 82, .width = 482, .height = 77}, .labels = bitLabels},
     .statistics = {},
+    .history = {},
 };
 
 // The display is 188 px high: the selection buttons, the list (five rows of 18 px), a thin line, the count, and the
@@ -348,12 +352,100 @@ const ViewLayout statisticsLayout{
                    .countValue = {.left = 66, .top = 143, .width = 66, .height = 19},
                    .upButton = {.left = 194, .top = 21, .width = 22, .height = 21},
                    .downButton = {.left = 221, .top = 21, .width = 22, .height = 21}},
+    .history = {},
+};
+
+// With History shown (windows7-history.md part A), the Standard and Scientific displays are 125 px taller: the list of
+// entries with its two selection buttons at the top, a thin line, then the expression line, the M and the number;
+// everything below the display is 125 px lower
+constexpr int historyHeight = 125;
+
+constexpr Rectangle lowered(Rectangle rectangle)
+{
+    rectangle.top += historyHeight;
+    return rectangle;
+}
+
+template <std::size_t count>
+constexpr std::array<ButtonSpec, count> loweredButtons(const std::array<ButtonSpec, count>& buttons)
+{
+    std::array<ButtonSpec, count> result = buttons;
+    for (ButtonSpec& button : result) {
+        button.rectangle = lowered(button.rectangle);
+    }
+    return result;
+}
+
+template <std::size_t count>
+constexpr std::array<ChoiceSpec, count> loweredChoices(const std::array<ChoiceSpec, count>& choices)
+{
+    std::array<ChoiceSpec, count> result = choices;
+    for (ChoiceSpec& choice : result) {
+        choice.rectangle = lowered(choice.rectangle);
+    }
+    return result;
+}
+
+constexpr std::array standardHistoryButtons = loweredButtons(standardButtons);
+constexpr std::array scientificHistoryButtons = loweredButtons(scientificButtons);
+constexpr std::array scientificHistoryChoices = loweredChoices(angles);
+constexpr std::array<Rectangle, 1> scientificHistoryFrames = {lowered(scientificFrames.front())};
+
+// The history list of a display this wide (238 in Standard, 482 in Scientific)
+constexpr StatisticsSpec historyList(int displayWidth)
+{
+    const int listWidth = displayWidth - 14;
+    return {.list = {.left = 20, .top = 46, .width = listWidth, .height = 91},
+            .rowHeight = 18,
+            .divider = {.left = 17, .top = 138, .width = displayWidth - 8, .height = 1},
+            .countLabel = {},
+            .countValue = {},
+            .upButton = {.left = listWidth - 27, .top = 20, .width = 22, .height = 21},
+            .downButton = {.left = listWidth, .top = 20, .width = 22, .height = 21}};
+}
+
+const ViewLayout standardHistoryLayout{
+    .clientWidth = 264,
+    .clientHeight = 456,
+    .displayFrame = {.left = 13, .top = 13, .width = 238, .height = 188},
+    .expressionLine = {.left = 17, .top = 141, .width = 230, .height = 18},
+    .memoryMark = {.left = 13, .top = 169, .width = 17, .height = 23},
+    .mainNumber = {.left = 35, .top = 158, .width = 211, .height = 36},
+    .buttons = standardHistoryButtons,
+    .frames = {},
+    .choices = {},
+    .bracketCounter = {},
+    .bitDisplay = {},
+    .statistics = {},
+    .history = historyList(238),
+};
+
+const ViewLayout scientificHistoryLayout{
+    .clientWidth = 508,
+    .clientHeight = 456,
+    .displayFrame = {.left = 13, .top = 13, .width = 482, .height = 188},
+    .expressionLine = {.left = 17, .top = 141, .width = 474, .height = 18},
+    .memoryMark = {.left = 13, .top = 169, .width = 17, .height = 23},
+    .mainNumber = {.left = 35, .top = 158, .width = 455, .height = 36},
+    .buttons = scientificHistoryButtons,
+    .frames = scientificHistoryFrames,
+    .choices = scientificHistoryChoices,
+    .bracketCounter = lowered({.left = 13, .top = 122, .width = 43, .height = 33}),
+    .bitDisplay = {},
+    .statistics = {},
+    .history = historyList(482),
 };
 
 }  // namespace
 
-const ViewLayout& layoutOf(View view)
+const ViewLayout& layoutOf(View view, bool historyShown)
 {
+    if (historyShown && view == View::Standard) {
+        return standardHistoryLayout;
+    }
+    if (historyShown && view == View::Scientific) {
+        return scientificHistoryLayout;
+    }
     switch (view) {
     case View::Scientific: return scientificLayout;
     case View::Programmer: return programmerLayout;

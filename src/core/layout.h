@@ -7,9 +7,10 @@
 #include <string_view>
 
 // --- Version ------------------------------------------------------------
-// src/core/layout.h 0.4.11
+// src/core/layout.h 0.5.12
 
 // --- Version history ----------------------------------------------------
+// v0.5.12: The Standard and Scientific views with History shown (the list of entries in the display)
 // v0.4.11: The Statistics view: its buttons and the list inside the display (D-023)
 // v0.3.8: The Programmer view: its buttons, the bases and word sizes, the bit display; choices of any kind
 // v0.2.7: Every view's layout (Standard and Scientific); each button's face and its label under Inv (D-020)
@@ -110,9 +111,13 @@ struct ViewLayout
     BitDisplaySpec bitDisplay;
     // Statistics only (an empty list elsewhere): the list of values in the display
     StatisticsSpec statistics;
+    // Standard and Scientific with History shown (an empty list elsewhere): the list of entries, the same kind of list
+    // as the Statistics view's, without a count
+    StatisticsSpec history;
 };
 
-const ViewLayout& layoutOf(View view);
+// The layout of a view; Standard and Scientific are taller with History shown (windows7-history.md part A)
+const ViewLayout& layoutOf(View view, bool historyShown = false);
 
 // The command id of the decimal-point button; the window shows the regional decimal separator as its label
 inline constexpr std::string_view decimalCommand = "decimal";

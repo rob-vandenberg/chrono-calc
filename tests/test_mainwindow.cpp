@@ -1,10 +1,12 @@
 #include <QAction>
+#include <QClipboard>
 #include <QCoreApplication>
 #include <QEvent>
 #include <QGuiApplication>
 #include <QKeyEvent>
 #include <QKeySequence>
 #include <QList>
+#include <QLocale>
 #include <QMenu>
 #include <QMenuBar>
 #include <QObject>
@@ -32,9 +34,11 @@
 #include <memory>
 
 // --- Version ------------------------------------------------------------
-// tests/test_mainwindow.cpp 0.4.11
+// tests/test_mainwindow.cpp 0.5.12
 
 // --- Version history ----------------------------------------------------
+// v0.5.12: History (the taller window, the list, its keys, the edit box), Digit grouping, Copy and Paste with the
+//          clipboard, the Edit menu of each view, History and Digit grouping remembered
 // v0.4.11: The Statistics view: its size, the list, the count, the selection buttons, the keyboard focus of the list
 // v0.3.10: Greek and Hebrew: the Q key is x² in Scientific; in Standard its sign counts
 // v0.3.9: A Russian keyboard keeps the letter keys and Ctrl letters; AZERTY keeps its own letters
@@ -392,20 +396,33 @@ private slots:
         QVERIFY(actionOf(view, QStringLiteral("&Programmer"))->isEnabled());
         QVERIFY(actionOf(view, QStringLiteral("St&atistics"))->isEnabled());
         QCOMPARE(actionOf(view, QStringLiteral("St&atistics"))->shortcut(), QKeySequence(QStringLiteral("Alt+4")));
-        for (const QString& greyed : {QStringLiteral("Histor&y"), QStringLiteral("D&igit grouping"), QStringLiteral("&Unit conversion"),
-                                      QStringLiteral("&Date calculation")}) {
+        for (const QString& greyed : {QStringLiteral("&Unit conversion"), QStringLiteral("&Date calculation")}) {
             const QAction* action = actionOf(view, greyed);
             QVERIFY2(action != nullptr && !action->isEnabled(), qPrintable(greyed));
         }
+        for (const QString& ticked : {QStringLiteral("Histor&y"), QStringLiteral("D&igit grouping")}) {
+            const QAction* action = actionOf(view, ticked);
+            QVERIFY2(action != nullptr && action->isEnabled() && action->isCheckable() && !action->isChecked(), qPrintable(ticked));
+        }
+        QCOMPARE(actionOf(view, QStringLiteral("Histor&y"))->shortcut(), QKeySequence(QStringLiteral("Ctrl+H")));
         const QAction* worksheets = actionOf(view, QStringLiteral("&Worksheets"));
         QVERIFY(worksheets != nullptr && worksheets->menu() != nullptr);
         QCOMPARE(worksheets->menu()->actions().size(), 4);
 
         const QMenu* edit = menuOf(*window, QStringLiteral("&Edit"));
         QVERIFY(edit != nullptr);
-        QVERIFY(!actionOf(edit, QStringLiteral("&Copy"))->isEnabled());
-        QVERIFY(!actionOf(edit, QStringLiteral("&Paste"))->isEnabled());
-        QCOMPARE(actionOf(edit, QStringLiteral("&History"))->menu()->actions().size(), 4);
+        QVERIFY(actionOf(edit, QStringLiteral("&Copy"))->isEnabled());
+        QCOMPARE(actionOf(edit, QStringLiteral("&Copy"))->shortcut(), QKeySequence(QStringLiteral("Ctrl+C")));
+        QCOMPARE(actionOf(edit, QStringLiteral("&Paste"))->shortcut(), QKeySequence(QStringLiteral("Ctrl+V")));
+        const QMenu* history = actionOf(edit, QStringLiteral("&History"))->menu();
+        QCOMPARE(history->actions().size(), 4);
+        for (const QAction* action : history->actions()) {
+            QVERIFY(action->isEnabled());
+        }
+        // F2 and Esc are only shown: the window's keys do them (Esc is C, F2 a word size in Programmer)
+        QVERIFY(actionOf(history, QStringLiteral("&Edit"))->shortcut().isEmpty());
+        QCOMPARE(actionOf(history, QStringLiteral("&Edit"))->text(), QStringLiteral("&Edit\tF2"));
+        QCOMPARE(actionOf(history, QStringLiteral("C&lear"))->shortcut(), QKeySequence(QStringLiteral("Ctrl+Shift+D")));
 
         const QMenu* help = menuOf(*window, QStringLiteral("&Help"));
         QVERIFY(help != nullptr);
@@ -617,6 +634,199 @@ private slots:
         QTest::keyClick(window->centralWidget(), Qt::Key_D);
         QCOMPARE(list->values().size(), 0);
         QCOMPARE(displayOf(*window)->countText(), QStringLiteral("Count = 0"));
+    }
+
+    // View > History (windows7-history.md parts A, C and D): the window grows by 125 px and shows the list of entries;
+    // the keys move the selection and show the entry's result; F2 opens the edit box over the entry, Enter
+    // calculates it in place, Escape drops it; History is greyed in Programmer and keeps its tick; it is remembered
+    static void historyShowsTheCalculations()
+    {
+        auto window = openWindow();
+        QVERIFY(window);
+        QWidget* area = window->centralWidget();
+        QTest::keyClick(area, Qt::Key_H, Qt::ControlModifier);
+        QCOMPARE(area->size(), QSize(264, 456));
+        QVERIFY(actionOf(menuOf(*window, QStringLiteral("&View")), QStringLiteral("Histor&y"))->isChecked());
+        auto* list = window->findChild<chrono_calc::StatisticsList*>(QStringLiteral("history.list"));
+        QVERIFY(list != nullptr);
+        QCOMPARE(list->geometry(), QRect(20, 46, 224, 91));
+        // The buttons of the shorter layout go once their own events are over
+        QTRY_COMPARE(buttonOf(*window, QStringLiteral("memory.clear"))->geometry().topLeft(), QPoint(13, 207));
+        QTest::keyClicks(area, QStringLiteral("2+3=2*4="));
+        QCOMPARE(list->values(), QStringList({QStringLiteral("2 + 3"), QStringLiteral("2 * 4")}));
+        QCOMPARE(list->selected(), 1);
+        // Up shows the result of the entry above
+        QTest::keyClick(area, Qt::Key_Up);
+        QCOMPARE(list->selected(), 0);
+        QCOMPARE(displayOf(*window)->number(), QStringLiteral("5"));
+        // A click chooses an entry and gives the list the focus; Up in the list gives it back
+        QTest::mouseClick(list, Qt::LeftButton, Qt::NoModifier, QPoint(list->width() / 2, 18 + 9));
+        QCOMPARE(displayOf(*window)->number(), QStringLiteral("8"));
+        QVERIFY(list->hasFocus());
+        QTest::keyClick(list, Qt::Key_Up);
+        QCOMPARE(displayOf(*window)->number(), QStringLiteral("5"));
+        QVERIFY(!list->hasFocus());
+        // F2 edits the selected entry; Enter calculates it in place and the list gets the focus
+        QTest::keyClick(area, Qt::Key_F2);
+        auto* box = window->findChild<chrono_calc::ListEditBox*>(QStringLiteral("edit.box"));
+        QVERIFY(box != nullptr);
+        QCOMPARE(box->text(), QStringLiteral("2 + 3"));
+        QVERIFY(box->hasFocus());
+        const QAction* recalculate =
+            actionOf(actionOf(menuOf(*window, QStringLiteral("&Edit")), QStringLiteral("&History"))->menu(), QStringLiteral("&Recalculate"));
+        QVERIFY(recalculate != nullptr);
+        QCOMPARE(recalculate->text(), QStringLiteral("&Recalculate\t="));
+        box->selectAll();
+        QTest::keyClicks(box, QStringLiteral("6*7"));
+        QTest::keyClick(box, Qt::Key_Return);
+        QTRY_VERIFY(window->findChild<chrono_calc::ListEditBox*>(QStringLiteral("edit.box")) == nullptr);
+        QCOMPARE(list->values(), QStringList({QStringLiteral("6 * 7"), QStringLiteral("2 * 4")}));
+        QCOMPARE(displayOf(*window)->number(), QStringLiteral("42"));
+        QVERIFY(list->hasFocus());
+        // An edit that cannot be read keeps the box open; Escape drops it
+        QTest::keyClick(area, Qt::Key_F2);
+        box = window->findChild<chrono_calc::ListEditBox*>(QStringLiteral("edit.box"));
+        QVERIFY(box != nullptr);
+        box->selectAll();
+        QTest::keyClicks(box, QStringLiteral("2+*3"));
+        QTest::keyClick(box, Qt::Key_Return);
+        QVERIFY(box->isVisible());
+        QTest::keyClick(box, Qt::Key_Escape);
+        QTRY_VERIFY(window->findChild<chrono_calc::ListEditBox*>(QStringLiteral("edit.box")) == nullptr);
+        QCOMPARE(list->values().first(), QStringLiteral("6 * 7"));
+        // Programmer: greyed, ticked, no list
+        QTest::keyClick(area, Qt::Key_3, Qt::AltModifier);
+        const QAction* history = actionOf(menuOf(*window, QStringLiteral("&View")), QStringLiteral("Histor&y"));
+        QVERIFY(!history->isEnabled());
+        QVERIFY(history->isChecked());
+        QCOMPARE(area->size(), QSize(508, 413));
+        QTest::keyClick(area, Qt::Key_1, Qt::AltModifier);
+        QCOMPARE(area->size(), QSize(264, 456));
+        window->close();
+        window = openWindow();
+        QVERIFY(window);
+        QCOMPARE(window->centralWidget()->size(), QSize(264, 456));
+        QTest::keyClick(window->centralWidget(), Qt::Key_H, Qt::ControlModifier);
+        QCOMPARE(window->centralWidget()->size(), QSize(264, 331));
+    }
+
+    // The grouping pattern of the regional settings: every three digits in most places, three and then two in India
+    static void theGroupingPatternComesFromTheRegionalSettings()
+    {
+        const QLocale saved;
+        QLocale::setDefault(QLocale(QLocale::English, QLocale::UnitedStates));
+        QCOMPARE(QString::fromStdWString(chrono_calc::MainWindow::systemSeparators().grouping), QStringLiteral("3;0"));
+        QLocale::setDefault(QLocale(QLocale::Hindi, QLocale::India));
+        const QString india = QString::fromStdWString(chrono_calc::MainWindow::systemSeparators().grouping);
+        QLocale::setDefault(saved);
+        QCOMPARE(india, QStringLiteral("3;2;0"));
+    }
+
+    // While an entry is edited, a click on a calculator button types its character into the edit box (windows7-history.md
+    // part D line 4); the ▲ ▼ buttons choose the entry above or below and leave the keyboard focus in the window (part C)
+    static void buttonsTypeIntoTheEditBox()
+    {
+        const auto window = openWindow();
+        QVERIFY(window);
+        QWidget* area = window->centralWidget();
+        QTest::keyClick(area, Qt::Key_H, Qt::ControlModifier);
+        QTest::keyClicks(area, QStringLiteral("2+3=2*4="));
+        QTRY_VERIFY(window->findChild<chrono_calc::SelectionArrow*>(QStringLiteral("history.up")) != nullptr);
+        QTest::mouseClick(window->findChild<chrono_calc::SelectionArrow*>(QStringLiteral("history.up")), Qt::LeftButton);
+        QCOMPARE(displayOf(*window)->number(), QStringLiteral("5"));
+        QVERIFY(!window->findChild<chrono_calc::StatisticsList*>(QStringLiteral("history.list"))->hasFocus());
+        QTest::keyClick(area, Qt::Key_F2);
+        auto* box = window->findChild<chrono_calc::ListEditBox*>(QStringLiteral("edit.box"));
+        QVERIFY(box != nullptr);
+        box->setCursorPosition(static_cast<int>(box->text().size()));
+        // Keys the box has no use for stay in the box: the edit and the display are kept (found in review)
+        QTest::keyClick(box, Qt::Key_F9);
+        QTest::keyClick(box, Qt::Key_Up);
+        QVERIFY(box->isVisible());
+        QCOMPARE(displayOf(*window)->number(), QStringLiteral("5"));
+        QTest::mouseClick(buttonOf(*window, QStringLiteral("multiply")), Qt::LeftButton);
+        QTest::mouseClick(buttonOf(*window, QStringLiteral("digit.8")), Qt::LeftButton);
+        QCOMPARE(box->text(), QStringLiteral("2 + 3*8"));
+        QCOMPARE(displayOf(*window)->number(), QStringLiteral("5"));
+        // A button without a character does nothing; = calculates the edit
+        QTest::mouseClick(buttonOf(*window, QStringLiteral("sqrt")), Qt::LeftButton);
+        QCOMPARE(box->text(), QStringLiteral("2 + 3*8"));
+        QTest::mouseClick(buttonOf(*window, QStringLiteral("equals")), Qt::LeftButton);
+        QTRY_VERIFY(window->findChild<chrono_calc::ListEditBox*>(QStringLiteral("edit.box")) == nullptr);
+        QCOMPARE(displayOf(*window)->number(), QStringLiteral("40"));
+    }
+
+    // View > Digit grouping groups the number shown, at once and while typing; Copy and Paste use the clipboard
+    // (windows7-history.md parts E and F); Digit grouping is remembered
+    static void digitGroupingCopyAndPaste()
+    {
+        auto window = openWindow();
+        QVERIFY(window);
+        QWidget* area = window->centralWidget();
+        QTest::keyClicks(area, QStringLiteral("1234567"));
+        QAction* grouping = actionOf(menuOf(*window, QStringLiteral("&View")), QStringLiteral("D&igit grouping"));
+        grouping->trigger();
+        QVERIFY(grouping->isChecked());
+        QCOMPARE(displayOf(*window)->number(), QStringLiteral("1.234.567"));
+        QTest::keyClick(area, Qt::Key_C, Qt::ControlModifier);
+        QCOMPARE(QGuiApplication::clipboard()->text(), QStringLiteral("1.234.567"));
+        QTest::keyClick(area, Qt::Key_Escape);
+        QGuiApplication::clipboard()->setText(QStringLiteral("2+3="));
+        QTest::keyClick(area, Qt::Key_V, Qt::ControlModifier);
+        QCOMPARE(displayOf(*window)->number(), QStringLiteral("5"));
+        QGuiApplication::clipboard()->setText(QStringLiteral("12345"));
+        QTest::keyClick(area, Qt::Key_Insert, Qt::ShiftModifier);
+        QCOMPARE(displayOf(*window)->number(), QStringLiteral("12.345"));
+        QGuiApplication::clipboard()->clear();
+        QTest::keyClick(area, Qt::Key_Insert, Qt::ControlModifier);
+        QCOMPARE(QGuiApplication::clipboard()->text(), QStringLiteral("12.345"));
+        // Paste is greyed while the clipboard holds no text
+        QGuiApplication::clipboard()->clear();
+        QTRY_VERIFY(!actionOf(menuOf(*window, QStringLiteral("&Edit")), QStringLiteral("&Paste"))->isEnabled());
+        QGuiApplication::clipboard()->setText(QStringLiteral("7"));
+        QTRY_VERIFY(actionOf(menuOf(*window, QStringLiteral("&Edit")), QStringLiteral("&Paste"))->isEnabled());
+        window->close();
+        window = openWindow();
+        QVERIFY(window);
+        QVERIFY(actionOf(menuOf(*window, QStringLiteral("&View")), QStringLiteral("D&igit grouping"))->isChecked());
+        QTest::keyClicks(window->centralWidget(), QStringLiteral("1234"));
+        QCOMPARE(displayOf(*window)->number(), QStringLiteral("1.234"));
+    }
+
+    // Each view has its Edit menu (windows7-history.md parts C and G): Programmer's History submenu is greyed (Windows 7
+    // leaves it out); Statistics has Copy dataset, Edit, Cancel edit and Clear, and F2 edits the selected value
+    static void eachViewHasItsEditMenu()
+    {
+        const auto window = openWindow();
+        QVERIFY(window);
+        QWidget* area = window->centralWidget();
+        QTest::keyClick(area, Qt::Key_3, Qt::AltModifier);
+        const QAction* history = actionOf(menuOf(*window, QStringLiteral("&Edit")), QStringLiteral("&History"));
+        QVERIFY(history != nullptr && !history->menu()->isEnabled());
+        QTest::keyClick(area, Qt::Key_4, Qt::AltModifier);
+        const QMenu* edit = menuOf(*window, QStringLiteral("&Edit"));
+        QVERIFY(actionOf(edit, QStringLiteral("&History")) == nullptr);
+        for (const QString& item : {QStringLiteral("Copy &dataset"), QStringLiteral("&Edit"), QStringLiteral("Ca&ncel edit"),
+                                    QStringLiteral("C&lear")}) {
+            QVERIFY2(actionOf(edit, item) != nullptr && actionOf(edit, item)->isEnabled(), qPrintable(item));
+        }
+        for (const QString& value : {QStringLiteral("5"), QStringLiteral("3"), QStringLiteral("4")}) {
+            QTest::keyClicks(area, value);
+            QTest::keyClick(area, Qt::Key_Return);
+        }
+        QTest::keyClick(area, Qt::Key_F2);
+        auto* box = window->findChild<chrono_calc::ListEditBox*>(QStringLiteral("edit.box"));
+        QVERIFY(box != nullptr);
+        QCOMPARE(box->text(), QStringLiteral("4"));
+        QVERIFY(!actionOf(edit, QStringLiteral("&Edit"))->isEnabled());
+        box->selectAll();
+        QTest::keyClicks(box, QStringLiteral("7"));
+        QTest::keyClick(box, Qt::Key_Return);
+        auto* list = window->findChild<chrono_calc::StatisticsList*>(QStringLiteral("statistics.list"));
+        QCOMPARE(list->values(), QStringList({QStringLiteral("5"), QStringLiteral("3"), QStringLiteral("7")}));
+        QTRY_VERIFY(list->hasFocus());
+        actionOf(edit, QStringLiteral("Copy &dataset"))->trigger();
+        QCOMPARE(QGuiApplication::clipboard()->text(), QStringLiteral("5\n3\n7\n"));
     }
 
     // The window opens in the view it was closed in, as Windows 7 does

@@ -7,9 +7,10 @@
 #include <string_view>
 
 // --- Version ------------------------------------------------------------
-// src/core/keys.h 0.4.11
+// src/core/keys.h 0.5.12
 
 // --- Version history ----------------------------------------------------
+// v0.5.12: F2 edits (the history, the Statistics list); Up, Down, Page Up and Page Down move in the history
 // v0.4.11: The keys of the Statistics view: digits, a s t d, x e v; Enter is Add; Ctrl+A/S/T
 // v0.3.9: The letter at a key's position, for keyboards without Latin letters
 // v0.3.8: The keys of the Programmer view: & | ^ ~ < > % ( ), a to f, j and k, F2 to F8 and F12
@@ -44,11 +45,17 @@ enum class Key : std::uint8_t
     F8,
     F9,
     F12,
+    Up,
+    Down,
+    PageUp,
+    PageDown,
 };
 
 // The command such a key gives, as in Windows 7: Escape = C, Delete = CE, Backspace, Enter = equals, F9 = plus/minus;
 // in the Scientific view F3, F4 and F5 = Degrees, Radians and Grads; in the Programmer view F5 to F8 = Hex, Dec, Oct,
-// Bin and F12, F2, F3, F4 = Qword, Dword, Word, Byte; in the Statistics view Enter = Add and Delete nothing (no CE)
+// Bin and F12, F2, F3, F4 = Qword, Dword, Word, Byte; in the Statistics view Enter = Add, Delete nothing (no CE) and F2
+// Edit; in Standard and Scientific F2 edits the history's selected entry, Up and Page Up choose the entry above,
+// Down and Page Down the one below
 std::optional<std::string_view> commandForKey(Key key, View view = View::Standard);
 
 // The command of Ctrl with this letter, as in Windows 7: L = MC, R = MR, M = MS, P = M+, Q = M-; in the Scientific view

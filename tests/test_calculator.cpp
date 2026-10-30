@@ -18,9 +18,10 @@
 #include <string_view>
 
 // --- Version ------------------------------------------------------------
-// tests/test_calculator.cpp 0.3.9
+// tests/test_calculator.cpp 0.5.12
 
 // --- Version history ----------------------------------------------------
+// v0.5.12: F2, Up, Down, Page Up and Page Down (History and the Statistics edit)
 // v0.3.9: The Latin letter at a key's position
 // v0.3.8: The Programmer keys (characters, F2 to F8 and F12)
 // v0.2.7: The Scientific keys (characters, F3 to F5, Ctrl letters); Scientific commands do nothing in Standard
@@ -53,6 +54,27 @@ class TestCalculator : public QObject
     Q_OBJECT
 
 private slots:
+    // F2 edits (History in Standard and Scientific, the list in Statistics, Dword in Programmer); Up and Page Up,
+    // Down and Page Down move in the history (windows7-history.md parts C and D)
+    static void theHistoryKeys()
+    {
+        using chrono_calc::Key;
+        using chrono_calc::View;
+        using chrono_calc::commandForKey;
+        QCOMPARE(commandForKey(Key::F2, View::Standard), std::optional<std::string_view>("history.edit"));
+        QCOMPARE(commandForKey(Key::F2, View::Scientific), std::optional<std::string_view>("history.edit"));
+        QCOMPARE(commandForKey(Key::F2, View::Statistics), std::optional<std::string_view>("statistics.edit"));
+        QCOMPARE(commandForKey(Key::F2, View::Programmer), std::optional<std::string_view>("word.dword"));
+        for (const View view : {View::Standard, View::Scientific}) {
+            QCOMPARE(commandForKey(Key::Up, view), std::optional<std::string_view>("history.select_previous"));
+            QCOMPARE(commandForKey(Key::PageUp, view), std::optional<std::string_view>("history.select_previous"));
+            QCOMPARE(commandForKey(Key::Down, view), std::optional<std::string_view>("history.select_next"));
+            QCOMPARE(commandForKey(Key::PageDown, view), std::optional<std::string_view>("history.select_next"));
+        }
+        QVERIFY(!commandForKey(Key::Up, View::Programmer).has_value());
+        QVERIFY(!commandForKey(Key::Down, View::Statistics).has_value());
+    }
+
     static void startsAtZero()
     {
         chrono_calc::Calculator calculator;

@@ -2,6 +2,8 @@
 
 #include "core/commands.h"
 #include "core/enginetexts.h"
+#include "core/historyedit.h"
+#include "core/keys.h"
 #include "core/statistics.h"
 #include "core/view.h"
 
@@ -17,6 +19,7 @@
 #include <algorithm>
 #include <cstddef>
 #include <cstdint>
+#include <cwctype>
 #include <memory>
 #include <optional>
 #include <string>
@@ -25,9 +28,11 @@
 #include <vector>
 
 // --- Version ------------------------------------------------------------
-// src/core/calculator.cpp 0.4.11
+// src/core/calculator.cpp 0.5.12
 
 // --- Version history ----------------------------------------------------
+// v0.5.12: History (one per view, from the engine; choosing an entry, Copy history, Clear, Edit), Digit grouping,
+//          Copy and Paste (D-024)
 // v0.4.11: The Statistics view: a fourth engine (16 digits, as Windows 7), the list of values with its selection, Add,
 //          CAD, the statistics computed on the engine's exact fractions (D-010, D-023)
 // v0.3.8: The Programmer view: a third engine in integer mode (64 bits); bases and word sizes kept over a view change;
@@ -51,7 +56,12 @@ constexpr int32_t scientificPrecision = 32;
 // The Programmer view works on 64-bit integers (Windows 10's precision for it)
 constexpr int32_t programmerPrecision = 64;
 constexpr std::size_t bitCount = 64;
-constexpr std::size_t historySize = 20;
+// The engine's own history holds only the calculation it just finished: the list is the wrapper's, which can edit it.
+// Windows 7 kept every one of 150 entries (windows7-history.md part B line 2); a cap keeps the memory in bounds.
+constexpr std::size_t engineHistorySize = 1;
+constexpr std::size_t historySize = 1000;
+// The longest text Paste reads (AGENTS.md 4.2.2): far more than any number or calculation the display can hold
+constexpr std::size_t pasteLimit = 10000;
 // Windows 7's text when a statistic has too few values (none, or one for σn-1); the engine has no such text
 constexpr std::wstring_view enterDataText = L"Enter data to calculate";
 
@@ -212,6 +222,29 @@ bool isStatisticsCommand(CommandKind kind)
     case CommandKind::StatisticsSelectPrevious:
     case CommandKind::StatisticsSelectNext:
     case CommandKind::StatisticsDelete:
+    case CommandKind::StatisticsCopyDataset:
+    case CommandKind::StatisticsEdit:
+    case CommandKind::StatisticsCancelEdit:
+    case CommandKind::StatisticsApplyEdit:
+        return true;
+    default:
+        return false;
+    }
+}
+
+// The commands of the history and View > History, which only the Standard and Scientific views have (Windows 7)
+bool isHistoryCommand(CommandKind kind)
+{
+    switch (kind) {
+    case CommandKind::ViewHistory:
+    case CommandKind::HistorySelect:
+    case CommandKind::HistorySelectPrevious:
+    case CommandKind::HistorySelectNext:
+    case CommandKind::HistoryCopy:
+    case CommandKind::HistoryClear:
+    case CommandKind::HistoryEdit:
+    case CommandKind::HistoryCancelEdit:
+    case CommandKind::HistoryRecalculate:
         return true;
     default:
         return false;
@@ -309,7 +342,13 @@ public:
     void OnNoRightParenAdded() override {}
     void MaxDigitsReached() override {}
     void BinaryOperatorReceived() override {}
-    void OnHistoryItemAdded(unsigned int /*addedItemIndex*/) override {}
+    // The calculation went to the history: the expression line has shown its last part
+    void OnHistoryItemAdded(unsigned int addedItemIndex) override
+    {
+        m_addedHistoryItem = addedItemIndex;
+        m_tail.clear();
+        m_full.clear();
+    }
     void MemoryItemChanged(unsigned int /*indexOfMemory*/) override {}
     void InputChanged() override {}
 
@@ -339,12 +378,19 @@ public:
         return m_openBrackets;
     }
 
+    // The index of the entry the engine put in its history since the last call, once
+    [[nodiscard]] std::optional<unsigned int> takeAddedHistoryItem()
+    {
+        return std::exchange(m_addedHistoryItem, std::nullopt);
+    }
+
 private:
     std::wstring m_primary;  // empty until the engine sends its first number
     std::wstring m_tail;
     std::wstring m_full;
     bool m_isError = false;
     unsigned int m_openBrackets = 0;
+    std::optional<unsigned int> m_addedHistoryItem;
 };
 
 namespace {
@@ -358,27 +404,43 @@ std::unique_ptr<CCalcEngine> newEngine(bool precedence, EngineTexts& texts, ICal
 
 }  // namespace
 
-Calculator::Calculator(Separators separators)
+Calculator::Calculator(const Separators& separators)
     : m_texts(separators)
+    , m_separators(separators)
     , m_display(std::make_unique<Display>())
-    , m_standardHistory(std::make_shared<CalculationManager::CalculatorHistory>(historySize))
-    , m_scientificHistory(std::make_shared<CalculationManager::CalculatorHistory>(historySize))
-    , m_programmerHistory(std::make_shared<CalculationManager::CalculatorHistory>(historySize))
-    , m_statisticsHistory(std::make_shared<CalculationManager::CalculatorHistory>(historySize))
+    , m_evaluationDisplay(std::make_unique<Display>())
+    , m_standardHistory(std::make_shared<CalculationManager::CalculatorHistory>(engineHistorySize))
+    , m_scientificHistory(std::make_shared<CalculationManager::CalculatorHistory>(engineHistorySize))
+    , m_programmerHistory(std::make_shared<CalculationManager::CalculatorHistory>(engineHistorySize))
+    , m_statisticsHistory(std::make_shared<CalculationManager::CalculatorHistory>(engineHistorySize))
     , m_standardEngine(newEngine(false /* left to right */, m_texts, m_display.get(), m_standardHistory))
     , m_scientificEngine(newEngine(true /* precedence */, m_texts, m_display.get(), m_scientificHistory))
     , m_programmerEngine(newEngine(true /* precedence */, m_texts, m_display.get(), m_programmerHistory, true /* integers */))
     , m_statisticsEngine(newEngine(false /* no operators */, m_texts, m_display.get(), m_statisticsHistory))
+    , m_evaluationHistory(std::make_shared<CalculationManager::CalculatorHistory>(1))
+    , m_standardEvaluationEngine(newEngine(false /* left to right */, m_texts, m_evaluationDisplay.get(), m_evaluationHistory))
+    , m_scientificEvaluationEngine(newEngine(true /* precedence */, m_texts, m_evaluationDisplay.get(), m_evaluationHistory))
     , m_engine(m_standardEngine.get())
 {
     // The engine never gives m_decimalSeparator a start value (CalcEngine.h:166), and SettingsChanged() only updates the
     // decimal symbol of its input when the new one differs from that value: by chance it may not, and then "0,1" is read
     // as an overflow. Reporting another separator once and then the real one makes the engine update it in every case.
-    m_texts.setSeparators(Separators{.decimal = separators.decimal == L'.' ? L',' : L'.', .thousands = separators.thousands});
-    for (CCalcEngine* engine : {m_statisticsEngine.get(), m_programmerEngine.get(), m_scientificEngine.get(), m_standardEngine.get()}) {
+    m_texts.setSeparators(Separators{.decimal = separators.decimal == L'.' ? L',' : L'.', .thousands = separators.thousands,
+                                       .grouping = separators.grouping});
+    const auto allEngines = {m_standardEvaluationEngine.get(), m_scientificEvaluationEngine.get(), m_statisticsEngine.get(),
+                             m_programmerEngine.get(), m_scientificEngine.get(), m_standardEngine.get()};
+    for (CCalcEngine* engine : allEngines) {
         engine->SettingsChanged();
     }
     m_texts.setSeparators(separators);
+    for (const bool scientific : {false, true}) {
+        CCalcEngine* engine = scientific ? m_scientificEvaluationEngine.get() : m_standardEvaluationEngine.get();
+        engine->SettingsChanged();
+        engine->ProcessCommand(IDC_DEC);
+        engine->ChangePrecision(precisionOf(scientific ? View::Scientific : View::Standard));
+        engine->UpdateMaxIntDigits();
+        engine->ProcessCommand(IDC_CLEAR);
+    }
     // The Standard engine is set up last: the number library's shared constants follow the last engine's precision, and
     // Standard is the view the calculator starts in
     for (const View view : {View::Statistics, View::Programmer, View::Scientific, View::Standard}) {
@@ -400,12 +462,82 @@ Calculator::~Calculator() = default;
 
 bool Calculator::run(std::string_view commandId)
 {
-    const auto target = findCommand(commandId);
+    return run(commandId, {});
+}
+
+bool Calculator::run(std::string_view commandId, std::wstring_view text)
+{
+    const std::optional<CommandTarget> target = findCommand(commandId);
     if (!target) {
         return false;
     }
-    // Basic only hides a side panel. Choosing the current view again changes nothing (Windows 7).
+    // Any other action ends an edit (the window applies it first where Windows 7 does: a view change)
     switch (target->kind) {
+    case CommandKind::HistoryRecalculate:
+    case CommandKind::HistoryEdit:
+    case CommandKind::StatisticsApplyEdit:
+    case CommandKind::StatisticsEdit:
+    case CommandKind::Copy:
+        break;
+    default:
+        m_edited.reset();
+        break;
+    }
+    if (target->kind == CommandKind::Paste) {
+        // The pasted text is typed key after key; while an error shows nothing changes (Windows 7)
+        if (!isError()) {
+            for (const std::string_view pastedCommand : pasteCommands(text)) {
+                if (const std::optional<CommandTarget> pasted = findCommand(pastedCommand)) {
+                    runTarget(*pasted, {});
+                }
+            }
+        }
+        return true;
+    }
+    runTarget(*target, text);
+    return true;
+}
+
+void Calculator::runTarget(const CommandTarget& target, std::wstring_view text)
+{
+    if (!runOwnCommand(target, text)) {
+        runEngineCommand(target);
+    }
+}
+
+// The commands that are the wrapper's own (views, switches, the history, the Statistics list); false for an engine
+// command
+bool Calculator::runOwnCommand(const CommandTarget& target, std::wstring_view text)
+{
+    // Basic only hides a side panel. Choosing the current view again changes nothing (Windows 7).
+    switch (target.kind) {
+    case CommandKind::ViewDigitGrouping:
+        setDigitGrouping(!m_digitGrouping);
+        return true;
+    case CommandKind::ViewHistory:
+        // Only the Standard and Scientific views have a history; elsewhere the item is greyed (Windows 7)
+        if (historyOf(m_view) != nullptr) {
+            m_historyShown = !m_historyShown;
+        }
+        return true;
+    case CommandKind::Copy:
+    case CommandKind::Paste:
+    case CommandKind::StatisticsCopyDataset:
+    case CommandKind::StatisticsEdit:
+    case CommandKind::StatisticsCancelEdit:
+    case CommandKind::StatisticsApplyEdit:
+        runEditCommand(target, text);
+        return true;
+    case CommandKind::HistorySelect:
+    case CommandKind::HistorySelectPrevious:
+    case CommandKind::HistorySelectNext:
+    case CommandKind::HistoryCopy:
+    case CommandKind::HistoryClear:
+    case CommandKind::HistoryEdit:
+    case CommandKind::HistoryCancelEdit:
+    case CommandKind::HistoryRecalculate:
+        runHistoryCommand(target, text);
+        return true;
     case CommandKind::ViewBasic:
         return true;
     case CommandKind::ViewStandard:
@@ -428,7 +560,7 @@ bool Calculator::run(std::string_view commandId)
     case CommandKind::StatisticsSelectNext:
     case CommandKind::StatisticsDelete:
         if (m_view == View::Statistics) {
-            runStatisticsCommand(*target);
+            runStatisticsCommand(target);
         }
         return true;
     case CommandKind::Inverse:
@@ -440,40 +572,86 @@ bool Calculator::run(std::string_view commandId)
     case CommandKind::Engine:
         break;
     }
-    const auto opCode = static_cast<std::uintptr_t>(target->engineCommand);
+    return false;
+}
+
+void Calculator::runEditCommand(const CommandTarget& target, std::wstring_view text)
+{
+    switch (target.kind) {
+    case CommandKind::Copy:
+        // The number exactly as shown, Digit grouping included, or the error text (Windows 7)
+        m_copied = display();
+        return;
+    case CommandKind::StatisticsCopyDataset:
+        // Every value with a line end; an empty list leaves the clipboard as it is (Windows 7)
+        if (m_view == View::Statistics && !m_values.empty()) {
+            std::wstring dataset;
+            for (const std::wstring& value : statisticsValues()) {
+                dataset += value + L'\n';
+            }
+            m_copied = dataset;
+        }
+        return;
+    case CommandKind::StatisticsEdit:
+        if (m_view == View::Statistics && m_selected) {
+            m_edited = m_selected;
+        }
+        return;
+    case CommandKind::StatisticsCancelEdit:
+        return;
+    case CommandKind::StatisticsApplyEdit:
+        if (m_view == View::Statistics) {
+            applyStatisticsEdit(text);
+        }
+        return;
+    default:
+        return;
+    }
+}
+
+void Calculator::runEngineCommand(const CommandTarget& target)
+{
+    const auto opCode = static_cast<std::uintptr_t>(target.engineCommand);
     // While an error shows, the engine takes only C and CE (scicomm.cpp); every other key changes nothing, so neither
     // the switches nor the expression line change either (passing it on would make the engine empty its expression)
     if (isError() && opCode != IDC_CLEAR && opCode != IDC_CENTR) {
-        return true;
+        return;
     }
     // A command the view does not have, or greys (Windows 7), does nothing: a key without a button there
-    if (!isAvailable(commandId)) {
-        return true;
+    if (!isAvailable(m_view, m_numberBase, target)) {
+        return;
     }
     if (m_view == View::Scientific) {
         runScientific(opCode);
-        return true;
+        return;
     }
     if (m_view == View::Programmer) {
         runProgrammer(opCode);
-        return true;
+        return;
     }
     if (m_view == View::Statistics) {
         runStatistics(opCode);
-        return true;
+        return;
     }
+    runStandard(opCode);
+}
+
+// A command of the Standard view's engine: the expression line is the wrapper's (Windows 7)
+void Calculator::runStandard(std::uintptr_t opCode)
+{
     if (isBinaryOperator(opCode)) {
         binaryOperator(opCode);
-        return true;
+        return;
     }
     if (opCode == IDC_PERCENT) {
         percent();
-        return true;
+        return;
     }
     // While an error shows, the engine takes CE as C (scicomm.cpp), so the expression line is cleared as well
     const bool clears = opCode == IDC_CLEAR || (opCode == IDC_CENTR && isError());
     runEngine(opCode);
     if (clears) {
+        m_standardChainEntry.clear();
         m_chain.clear();
         m_pendingOperator = 0;
         m_leftValue.reset();
@@ -481,7 +659,7 @@ bool Calculator::run(std::string_view commandId)
         m_percentText.clear();
         m_afterEquals = false;
         m_result.reset();
-        return true;
+        return;
     }
     switch (opCode) {
     case IDC_EQU:
@@ -512,7 +690,6 @@ bool Calculator::run(std::string_view commandId)
         m_afterEquals = false;
         break;
     }
-    return true;
 }
 
 std::wstring Calculator::display() const
@@ -521,8 +698,9 @@ std::wstring Calculator::display() const
         return m_statisticsError;
     }
     // The engine always groups hexadecimal, octal and binary numbers with spaces (scidisp.cpp, GroupDigitsPerRadix:
-    // Windows 10's choice); Windows 7 starts with Digit grouping off and shows them whole, as it does decimals
-    if (m_view == View::Programmer && m_numberBase != NumberBase::Decimal && !isError()) {
+    // Windows 10's choice); Windows 7 does so only with Digit grouping on (Hex and Bin by four, Oct by three) and shows
+    // them whole otherwise, as it does decimals
+    if (!m_digitGrouping && m_view == View::Programmer && m_numberBase != NumberBase::Decimal && !isError()) {
         std::wstring whole = m_display->primary();
         std::erase(whole, L' ');
         return whole;
@@ -586,20 +764,25 @@ unsigned int Calculator::openBrackets() const
 
 bool Calculator::isAvailable(View view, NumberBase base, std::string_view commandId)
 {
-    const auto target = findCommand(commandId);
-    if (!target) {
-        return false;
-    }
-    if (target->kind == CommandKind::Inverse) {
+    const std::optional<CommandTarget> target = findCommand(commandId);
+    return target && isAvailable(view, base, *target);
+}
+
+bool Calculator::isAvailable(View view, NumberBase base, const CommandTarget& target)
+{
+    if (target.kind == CommandKind::Inverse) {
         return view == View::Scientific;
     }
-    if (isStatisticsCommand(target->kind)) {
+    if (isStatisticsCommand(target.kind)) {
         return view == View::Statistics;
     }
-    if (target->kind != CommandKind::Engine) {
+    if (isHistoryCommand(target.kind)) {
+        return view == View::Standard || view == View::Scientific;
+    }
+    if (target.kind != CommandKind::Engine) {
         return true;
     }
-    const auto opCode = static_cast<std::uintptr_t>(target->engineCommand);
+    const auto opCode = static_cast<std::uintptr_t>(target.engineCommand);
     switch (view) {
     case View::Scientific:
         return opCode != IDC_PERCENT && !isProgrammerOnly(opCode);
@@ -702,11 +885,33 @@ void Calculator::runProgrammer(std::uintptr_t opCode)
     case IDM_BYTE: m_wordSize = WordSize::Byte; break;
     default: break;
     }
+    if (opCode == IDC_EQU && !closeBrackets(*m_engine, *m_display)) {
+        return;
+    }
     runEngine(opCode);
+}
+
+// = closes the open brackets itself, in a loop that never ends when the engine refuses a ")" (scicomm.cpp: with its
+// precedence stack of 25 full, as 13 times "1+2*(" makes it); the brackets are closed here one by one instead, and
+// = does nothing when one cannot be closed, as the engine does with that ")"
+bool Calculator::closeBrackets(CCalcEngine& engine, const Display& display)
+{
+    while (display.openBrackets() > 0) {
+        const unsigned int before = display.openBrackets();
+        engine.ProcessCommand(IDC_CLOSEP);
+        if (engine.FInErrorState()) {
+            return true;
+        }
+        if (display.openBrackets() >= before) {
+            return false;
+        }
+    }
+    return true;
 }
 
 void Calculator::resetWrapperState()
 {
+    m_standardChainEntry.clear();
     m_chain.clear();
     m_pendingOperator = 0;
     m_leftValue.reset();
@@ -773,6 +978,9 @@ void Calculator::runScientific(std::uintptr_t opCode)
     const bool clears = opCode == IDC_CLEAR || (opCode == IDC_CENTR && isError());
     if (opCode == IDC_FE) {
         m_scientificNotation = !m_scientificNotation;
+    }
+    if (opCode == IDC_EQU && !closeBrackets(*m_engine, *m_display)) {
+        return;
     }
     runEngine(opCode);
     if (clears) {
@@ -885,8 +1093,9 @@ std::vector<std::wstring> Calculator::statisticsValues()
     std::vector<std::wstring> texts;
     texts.reserve(m_values.size());
     for (const CalcEngine::Rational& value : m_values) {
-        // The engine writes it as its display does: 16 digits, F-E, the regional decimal separator
-        texts.push_back(m_statisticsEngine->GetStringForDisplay(value, 10));
+        // The engine writes it as its display does: 16 digits, F-E, the regional separators, Digit grouping
+        const std::wstring text = m_statisticsEngine->GetStringForDisplay(value, 10);
+        texts.push_back(m_digitGrouping ? m_statisticsEngine->GroupDigitsPerRadix(text, 10) : text);
     }
     return texts;
 }
@@ -904,6 +1113,12 @@ std::optional<std::size_t> Calculator::selectedValue() const
 void Calculator::runEngine(std::uintptr_t opCode)
 {
     m_engine->ProcessCommand(opCode);
+    // The engine adds a calculation to the view's history after = (and a pending function, sqrt(9), when a new number
+    // or CE follows it); the new entry is the selected one (Windows 7). The Standard engine also adds each step of a
+    // chain at its next operator ("2 + 3" at the * of 2+3*4=); Windows 7 shows the chain as one entry ("2 + 3 * 4").
+    if (m_display->takeAddedHistoryItem() && historyOf(m_view) != nullptr) {
+        addHistoryEntry(m_view == View::Standard && isBinaryOperator(opCode));
+    }
 }
 
 void Calculator::binaryOperator(std::uintptr_t opCode)
@@ -914,7 +1129,7 @@ void Calculator::binaryOperator(std::uintptr_t opCode)
     } else {
         std::wstring operand = m_percentText.empty() ? m_display->tail() : m_percentText;
         if (m_afterEquals || operand.empty()) {
-            operand = display();
+            operand = ungrouped(display());
         }
         m_chain = (m_chain.empty() ? operand : m_chain + L' ' + operand) + L' ' + operatorCharacter(opCode);
     }
@@ -950,7 +1165,7 @@ void Calculator::percent()
     const CalcEngine::Rational value = currentValue();
     enterValue(value * (*left / CalcEngine::Rational(100)));
     m_lastWasOperator = false;
-    m_percentText = display();
+    m_percentText = ungrouped(display());
     m_afterEquals = false;
 }
 
@@ -979,4 +1194,541 @@ CalcEngine::Rational Calculator::memoryValue()
     return value;
 }
 
+bool Calculator::isDigitGrouping() const
+{
+    return m_digitGrouping;
+}
+
+bool Calculator::isHistoryShown() const
+{
+    return m_historyShown;
+}
+
+std::vector<std::wstring> Calculator::historyEntries() const
+{
+    std::vector<std::wstring> texts;
+    if (const std::vector<HistoryEntry>* entries = historyOf(m_view)) {
+        for (const HistoryEntry& entry : *entries) {
+            texts.push_back(entry.expression);
+        }
+    }
+    return texts;
+}
+
+std::optional<std::size_t> Calculator::selectedHistoryEntry() const
+{
+    return historyOf(m_view) != nullptr ? historySelection() : std::nullopt;
+}
+
+std::optional<std::size_t> Calculator::editedHistoryEntry() const
+{
+    return historyOf(m_view) != nullptr ? m_edited : std::nullopt;
+}
+
+std::optional<std::size_t> Calculator::editedStatisticsValue() const
+{
+    return m_view == View::Statistics ? m_edited : std::nullopt;
+}
+
+std::optional<std::wstring> Calculator::takeCopiedText()
+{
+    return std::exchange(m_copied, std::nullopt);
+}
+
+std::vector<HistoryEntry>* Calculator::historyOf(View view)
+{
+    switch (view) {
+    case View::Standard: return &m_standardEntries;
+    case View::Scientific: return &m_scientificEntries;
+    case View::Programmer:
+    case View::Statistics: break;
+    }
+    return nullptr;
+}
+
+const std::vector<HistoryEntry>* Calculator::historyOf(View view) const
+{
+    switch (view) {
+    case View::Standard: return &m_standardEntries;
+    case View::Scientific: return &m_scientificEntries;
+    case View::Programmer:
+    case View::Statistics: break;
+    }
+    return nullptr;
+}
+
+std::optional<std::size_t>& Calculator::historySelection()
+{
+    return m_view == View::Scientific ? m_scientificSelected : m_standardSelected;
+}
+
+const std::optional<std::size_t>& Calculator::historySelection() const
+{
+    return m_view == View::Scientific ? m_scientificSelected : m_standardSelected;
+}
+
+NumberRules Calculator::numberRules() const
+{
+    return NumberRules{.decimal = m_separators.decimal,
+                       .thousands = m_separators.thousands,
+                       .mostDigits = static_cast<std::size_t>(precisionOf(m_view))};
+}
+
+std::wstring Calculator::ungrouped(const std::wstring& text) const
+{
+    if (!m_digitGrouping || isError()) {
+        return text;
+    }
+    std::wstring result = text;
+    const bool spaces = m_view == View::Programmer && m_numberBase != NumberBase::Decimal;
+    std::erase(result, spaces ? L' ' : m_separators.thousands);
+    return result;
+}
+
+// The engine groups the digits itself whenever it writes a number, but it keeps what it last showed in a cache shared
+// by every engine that does not know about grouping (scidisp.cpp, gldPrevious), so the number shown now is grouped or
+// ungrouped here, with the engine's own grouping
+void Calculator::setDigitGrouping(bool grouping)
+{
+    // The number without separators, as display() shows it with grouping off (the engine always writes Hex, Oct and
+    // Bin with spaces)
+    std::wstring shown = ungrouped(m_display->primary());
+    if (m_view == View::Programmer && m_numberBase != NumberBase::Decimal && !m_display->isError()) {
+        std::erase(shown, L' ');
+    }
+    const bool error = m_display->isError();
+    m_digitGrouping = grouping;
+    m_texts.setDigitGrouping(grouping);
+    for (CCalcEngine* engine : {m_standardEngine.get(), m_scientificEngine.get(), m_programmerEngine.get(), m_statisticsEngine.get()}) {
+        engine->SettingsChanged();
+    }
+    if (error) {
+        m_display->SetPrimaryDisplay(shown, error);
+        return;
+    }
+    m_display->SetPrimaryDisplay(grouping ? m_engine->GroupDigitsPerRadix(shown, m_engine->GetCurrentRadix()) : shown, false);
+}
+
+void Calculator::addHistoryEntry(bool chainStep)
+{
+    const auto& engineHistory = m_view == View::Scientific ? m_scientificHistory : m_standardHistory;
+    if (engineHistory->GetHistory().empty()) {
+        return;
+    }
+    const CalculationManager::HISTORYITEMVECTOR& item = engineHistory->GetHistory().back()->historyItemVector;
+    // The tokens from the first binary operator on: a step of a Standard chain starts with the result of the steps
+    // before it, which the chain so far replaces ("5 * 4" after "2 + 3" is "2 + 3 * 4")
+    std::size_t first = 0;
+    if (!m_standardChainEntry.empty() && item.spTokens && item.spCommands) {
+        for (std::size_t index = 0; index < item.spTokens->size(); ++index) {
+            const int command = (*item.spTokens)[index].second;
+            if (command >= 0 && static_cast<std::size_t>(command) < item.spCommands->size()
+                && (*item.spCommands)[static_cast<std::size_t>(command)]->GetCommandType() == CalculationManager::CommandType::BinaryCommand) {
+                first = index;
+                break;
+            }
+        }
+    }
+    std::wstring expression = first > 0 ? m_standardChainEntry + L' ' : std::wstring();
+    if (item.spTokens) {
+        for (std::size_t index = first; index < item.spTokens->size(); ++index) {
+            expression += (*item.spTokens)[index].first;
+        }
+    }
+    // The engine ends the expression with its "=", which the history does not show (Windows 7)
+    expression = trimmed(expression);
+    if (!expression.empty() && expression.back() == L'=') {
+        expression.pop_back();
+    }
+    if (chainStep) {
+        m_standardChainEntry = expression;
+        return;
+    }
+    if (first > 0) {
+        m_standardChainEntry.clear();
+    }
+    std::wstring result = item.result;
+    std::erase(result, m_separators.thousands);
+    std::vector<HistoryEntry>& entries = *historyOf(m_view);
+    if (entries.size() >= historySize) {
+        entries.erase(entries.begin());
+    }
+    entries.push_back(HistoryEntry{.expression = tightBrackets(trimmed(expression)), .result = std::move(result)});
+    historySelection() = entries.size() - 1;
+}
+
+void Calculator::runHistoryCommand(const CommandTarget& target, std::wstring_view text)
+{
+    std::vector<HistoryEntry>* entries = historyOf(m_view);
+    if (entries == nullptr) {
+        return;
+    }
+    std::optional<std::size_t>& selected = historySelection();
+    switch (target.kind) {
+    case CommandKind::HistoryCopy:
+        // Every entry with a line end; an empty history leaves the clipboard as it is (Windows 7)
+        if (!entries->empty()) {
+            std::wstring copied;
+            for (const HistoryEntry& entry : *entries) {
+                copied += entry.expression + L'\n';
+            }
+            m_copied = copied;
+        }
+        return;
+    case CommandKind::HistoryClear:
+        // Only the list goes; the number and an error stay (Windows 7)
+        entries->clear();
+        selected.reset();
+        return;
+    case CommandKind::HistoryEdit:
+        // The selected entry, while the history is shown; with an empty history nothing (Windows 7, also while an error
+        // shows)
+        if (m_historyShown && selected && *selected < entries->size()) {
+            m_edited = selected;
+        }
+        return;
+    case CommandKind::HistoryCancelEdit:
+        return;
+    case CommandKind::HistoryRecalculate:
+        recalculateHistoryEntry(text);
+        return;
+    case CommandKind::HistorySelect:
+        chooseHistoryEntry(target.index);
+        return;
+    case CommandKind::HistorySelectPrevious:
+    case CommandKind::HistorySelectNext:
+        // The keys move the selection only while the history is shown (Windows 7); no wrap at the ends
+        if (m_historyShown && selected) {
+            if (target.kind == CommandKind::HistorySelectPrevious && *selected > 0) {
+                chooseHistoryEntry(*selected - 1);
+            } else if (target.kind == CommandKind::HistorySelectNext && *selected + 1 < entries->size()) {
+                chooseHistoryEntry(*selected + 1);
+            }
+        }
+        return;
+    default:
+        return;
+    }
+}
+
+void Calculator::chooseHistoryEntry(std::size_t index)
+{
+    const std::vector<HistoryEntry>* entries = historyOf(m_view);
+    if (entries == nullptr || index >= entries->size()) {
+        return;
+    }
+    historySelection() = index;
+    const std::optional<CalcEngine::Rational> value = valueOf((*entries)[index].result);
+    if (!value) {
+        return;
+    }
+    if (isError()) {
+        if (m_view == View::Scientific) {
+            runScientific(IDC_CLEAR);
+        } else {
+            runStandard(IDC_CLEAR);
+        }
+    }
+    enterValue(*value);
+    // The value is now the current value, as after a memory recall: an operator still pending stays (Windows 7)
+    m_lastWasOperator = false;
+    m_percentText.clear();
+    m_afterEquals = false;
+}
+
+void Calculator::recalculateHistoryEntry(std::wstring_view text)
+{
+    std::vector<HistoryEntry>* entries = historyOf(m_view);
+    if (entries == nullptr || !m_edited || *m_edited >= entries->size()) {
+        return;
+    }
+    const std::size_t index = *m_edited;
+    const std::optional<std::vector<EditStep>> steps = readEdit(text, numberRules());
+    if (!steps) {
+        return;
+    }
+    // The evaluation engine calculates it as the view does (Standard from left to right, Scientific with precedence);
+    // the entry is written as the engine writes its parts
+    CCalcEngine& engine = evaluationEngine();
+    const std::optional<std::wstring> expression = typeSteps(engine, *steps);
+    if (!expression) {
+        endEvaluation(engine);
+        return;  // an edit that ends in an error is not taken (Windows 7: 1/0)
+    }
+    engine.ProcessCommand(IDC_EQU);
+    const bool error = engine.FInErrorState();
+    const CalcEngine::Rational result = valueIn(engine);
+    const std::wstring written = engine.GetStringForDisplay(result, 10);
+    endEvaluation(engine);
+    if (error) {
+        return;
+    }
+    (*entries)[index] = HistoryEntry{.expression = *expression, .result = written};
+    m_edited.reset();
+    chooseHistoryEntry(index);
+}
+
+// Types the steps of an edit into the evaluation engine; the entry as the engine writes its parts, or nothing when a
+// step ends in an error or the engine refuses a bracket
+std::optional<std::wstring> Calculator::typeSteps(CCalcEngine& engine, const std::vector<EditStep>& steps)
+{
+    std::wstring expression;
+    std::vector<const EditStep*> functions;
+    for (const EditStep& step : steps) {
+        switch (step.kind) {
+        case EditStep::Kind::Number:
+            typeNumber(engine, step.number);
+            expression += engine.GetStringForDisplay(valueIn(engine), 10);
+            break;
+        case EditStep::Kind::Operator:
+            engine.ProcessCommand(step.commands.front());
+            expression += L' ' + step.text + L' ';
+            break;
+        case EditStep::Kind::Function:
+        case EditStep::Kind::Open:
+            functions.push_back(step.kind == EditStep::Kind::Function ? &step : nullptr);
+            engine.ProcessCommand(IDC_OPENP);
+            expression += step.kind == EditStep::Kind::Function ? step.text + L'(' : std::wstring(L"(");
+            // The engine refuses a bracket beyond its depth of 25 without an error: the edit is not taken then
+            if (m_evaluationDisplay->openBrackets() != functions.size()) {
+                return std::nullopt;
+            }
+            break;
+        case EditStep::Kind::Close:
+            engine.ProcessCommand(IDC_CLOSEP);
+            if (m_evaluationDisplay->openBrackets() + 1 != functions.size()) {
+                return std::nullopt;
+            }
+            if (functions.back() != nullptr) {
+                for (const std::uintptr_t command : functions.back()->commands) {
+                    engine.ProcessCommand(command);
+                }
+            }
+            functions.pop_back();
+            expression += L')';
+            break;
+        }
+        if (engine.FInErrorState()) {
+            return std::nullopt;
+        }
+    }
+    return expression;
+}
+
+void Calculator::applyStatisticsEdit(std::wstring_view text)
+{
+    if (!m_edited || *m_edited >= m_values.size()) {
+        return;
+    }
+    const std::size_t index = *m_edited;
+    // An empty text removes the value (Windows 7); a text that is no number keeps the edit open (Windows 7 removes the
+    // value then too: a typing mistake would throw it away, D-024)
+    if (trimmed(std::wstring(text)).empty()) {
+        m_selected = index;
+        deleteSelectedValue();
+        m_edited.reset();
+        return;
+    }
+    const std::optional<TypedNumber> number = readNumber(text, numberRules());
+    if (!number) {
+        return;
+    }
+    CCalcEngine& engine = evaluationEngine();
+    typeNumber(engine, *number);
+    const bool error = engine.FInErrorState();
+    const CalcEngine::Rational value = valueIn(engine);
+    endEvaluation(engine);
+    if (error) {
+        return;
+    }
+    m_values[index] = value;
+    m_selected = index;
+    m_edited.reset();
+}
+
+CCalcEngine& Calculator::evaluationEngine()
+{
+    CCalcEngine& engine = m_view == View::Scientific ? *m_scientificEvaluationEngine : *m_standardEvaluationEngine;
+    engine.ProcessCommand(IDC_CLEAR);
+    return engine;
+}
+
+// Every engine skips writing its number when it equals what the last engine wrote, in a cache all engines share
+// (scidisp.cpp, gldPrevious), so after a value calculated by an evaluation engine the current engine would not show it.
+// A clear leaves the cache in the typing state, which makes the next engine write its number again.
+void Calculator::endEvaluation(CCalcEngine& engine)
+{
+    engine.ProcessCommand(IDC_CLEAR);
+}
+
+void Calculator::typeNumber(CCalcEngine& engine, const TypedNumber& number)
+{
+    for (const wchar_t character : number.mantissa) {
+        engine.ProcessCommand(character == L'.' ? IDC_PNT : IDC_0 + static_cast<std::uintptr_t>(character - L'0'));
+    }
+    if (number.negative) {
+        engine.ProcessCommand(IDC_SIGN);
+    }
+    if (number.hasExponent) {
+        engine.ProcessCommand(IDC_EXP);
+        for (const wchar_t character : number.exponent) {
+            engine.ProcessCommand(IDC_0 + static_cast<std::uintptr_t>(character - L'0'));
+        }
+        if (number.exponentNegative) {
+            engine.ProcessCommand(IDC_SIGN);
+        }
+    }
+}
+
+std::optional<CalcEngine::Rational> Calculator::valueOf(const std::wstring& written)
+{
+    // The engine writes its decimal point with the regional symbol, which the reader takes
+    const std::optional<TypedNumber> number = readNumber(written, numberRules());
+    if (!number) {
+        return std::nullopt;
+    }
+    CCalcEngine& engine = evaluationEngine();
+    typeNumber(engine, *number);
+    const bool error = engine.FInErrorState();
+    CalcEngine::Rational value = valueIn(engine);
+    endEvaluation(engine);
+    if (error) {
+        return std::nullopt;
+    }
+    return value;
+}
+
+CalcEngine::Rational Calculator::valueIn(CCalcEngine& engine)
+{
+    const std::unique_ptr<CalcEngine::Rational> saved = engine.PersistedMemObject();
+    engine.ProcessCommand(IDC_STORE);
+    const std::unique_ptr<CalcEngine::Rational> value = engine.PersistedMemObject();
+    engine.PersistedMemObject(saved ? *saved : CalcEngine::Rational(0));
+    return value ? *value : CalcEngine::Rational(0);
+}
+
+// Paste reads the text as the keys of the current view typed one after the other (Windows 7, windows7-history.md part
+// F): a character without a key is skipped; the regional decimal symbol is the decimal point and the other one is
+// skipped; a minus at the start is the number's sign; "e" with its "+" or "-" is skipped where the view has no Exp;
+// a line end ends the number being typed (Add in the Statistics view); ":m :r :p :q :c" are MS MR M+ M- MC; "q" is C
+std::vector<std::string_view> Calculator::pasteCommands(std::wstring_view text) const
+{
+    const std::wstring_view pasted = text.substr(0, std::min(text.size(), pasteLimit));
+    std::vector<std::string_view> commands;
+    bool signPending = false;
+    for (std::size_t position = 0; position < pasted.size(); ++position) {
+        const std::size_t before = commands.size();
+        bool startsSign = false;
+        position += pasteCharacter(pasted.substr(position), commands, startsSign);
+        // A pending sign is the number's (or the exponent's): it comes once its digits are typed, before the first
+        // command that is not part of the number; a skipped character (a space) leaves it pending
+        if (signPending && commands.size() > before && !commands[before].starts_with("digit.") && commands[before] != "decimal") {
+            commands.insert(commands.begin() + static_cast<std::ptrdiff_t>(before), "negate");
+            signPending = false;
+        }
+        signPending = signPending || startsSign;
+    }
+    if (signPending) {
+        commands.emplace_back("negate");
+    }
+    return commands;
+}
+
+// The commands of the pasted character at the start of the text, and whether it starts a sign (a minus before a
+// number, the minus of an exponent); it returns how many of the characters after it go with it (":m", "\r\n", "e+")
+std::size_t Calculator::pasteCharacter(std::wstring_view text, std::vector<std::string_view>& commands, bool& startsSign) const
+{
+    const wchar_t character = text.front();
+    // A minus at the start, or at the start of a line (not measured: a pasted Copy dataset keeps its signs)
+    const bool lineStart = commands.empty() || commands.back() == "statistics.add" || commands.back() == "clear_entry";
+    if (character == L'-' && lineStart && startsNumber(text.substr(1))) {
+        startsSign = true;
+        return 0;
+    }
+    return pasteKey(text, commands, startsSign);
+}
+
+// The commands of the pasted character at the start of the text other than a sign; it returns how many of the
+// characters after it go with it
+std::size_t Calculator::pasteKey(std::wstring_view text, std::vector<std::string_view>& commands, bool& startsSign) const
+{
+    const wchar_t character = text.front();
+    const wchar_t next = text.size() > 1 ? text[1] : L'\0';
+    const bool nextIsSign = next == L'+' || next == L'-';
+    if (character == L':' && next != L'\0' && next != L'\r' && next != L'\n') {
+        if (const std::optional<std::string_view> memory = pastedMemoryCode(next)) {
+            commands.push_back(*memory);
+        }
+        return 1;
+    }
+    if (character == L'\r' || character == L'\n') {
+        commands.emplace_back(m_view == View::Statistics ? "statistics.add" : "clear_entry");
+        return character == L'\r' && next == L'\n' ? 1 : 0;
+    }
+    const std::optional<std::string_view> command = pastedCommand(character);
+    if ((character == L'e' || character == L'E') && !command) {
+        return nextIsSign ? 1 : 0;  // "1,2e+3" in Standard: the exponent's sign goes with the e
+    }
+    if (!command) {
+        return 0;
+    }
+    commands.push_back(*command);
+    if (*command == "exponent" && nextIsSign) {
+        startsSign = next == L'-';
+        return 1;
+    }
+    return 0;
+}
+
+// Whether a pasted text starts a number in the view, after the characters it skips (a space, a digit the base does not
+// have, "e+" in Standard, ":e"): its first command, read as the paste reads it, is a digit of the base (A to F in Hex)
+// or the decimal point
+bool Calculator::startsNumber(std::wstring_view text) const
+{
+    std::vector<std::string_view> commands;
+    bool startsSign = false;
+    for (std::size_t position = 0; position < text.size() && commands.empty(); ++position) {
+        position += pasteKey(text.substr(position), commands, startsSign);
+    }
+    return !commands.empty() && (commands.front().starts_with("digit.") || commands.front() == "decimal");
+}
+
+// The memory codes of a pasted text: ":m" MS, ":r" MR, ":p" M+, ":q" M-, ":c" MC (Windows 7)
+std::optional<std::string_view> Calculator::pastedMemoryCode(wchar_t letter)
+{
+    switch (std::towlower(letter)) {
+    case L'm': return "memory.store";
+    case L'r': return "memory.recall";
+    case L'p': return "memory.add";
+    case L'q': return "memory.subtract";
+    case L'c': return "memory.clear";
+    default: return std::nullopt;
+    }
+}
+
+// The command of one pasted character: its key in the view; the regional decimal symbol (the other one is skipped);
+// q is C (Windows 7). A command the view does not allow (a digit outside the base, the decimal point in Programmer)
+// counts as none, as its key does nothing: it neither ends a number nor stands before a sign.
+std::optional<std::string_view> Calculator::pastedCommand(wchar_t character) const
+{
+    const std::optional<std::string_view> command = keyOfPastedCharacter(character);
+    return command && isAvailable(*command) ? command : std::nullopt;
+}
+
+std::optional<std::string_view> Calculator::keyOfPastedCharacter(wchar_t character) const
+{
+    if (character == L'.' || character == L',') {
+        return character == m_separators.decimal ? std::optional<std::string_view>("decimal") : std::nullopt;
+    }
+    // q is C in every view, also where the key q is x² (Scientific)
+    if (character == L'q' || character == L'Q') {
+        return "clear";
+    }
+    const std::optional<std::string_view> command = commandForCharacter(static_cast<char32_t>(character), m_view);
+    // A number's exponent may be written with a capital E ("1E-5"): Exp where the view has it (the key is e)
+    if (!command && character == L'E') {
+        return commandForCharacter(U'e', m_view);
+    }
+    return command;
+}
 }  // namespace chrono_calc

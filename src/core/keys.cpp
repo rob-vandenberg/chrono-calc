@@ -9,9 +9,10 @@
 #include <utility>
 
 // --- Version ------------------------------------------------------------
-// src/core/keys.cpp 0.4.11
+// src/core/keys.cpp 0.5.12
 
 // --- Version history ----------------------------------------------------
+// v0.5.12: F2 edits (the history, the Statistics list); Up, Down, Page Up and Page Down move in the history
 // v0.4.11: The keys of the Statistics view: digits, a s t d, x e v; Enter is Add; Ctrl+A/S/T
 // v0.3.9: The letter at a key's position, for keyboards without Latin letters
 // v0.3.8: The keys of the Programmer view: & | ^ ~ < > % ( ), a to f, j and k, F2 to F8 and F12
@@ -195,7 +196,19 @@ std::optional<std::string_view> commandForKey(Key key, View view)
         case Key::Backspace: return "backspace";
         case Key::Enter: return "statistics.add";
         case Key::F9: return "negate";
+        case Key::F2: return "statistics.edit";
         default: return std::nullopt;
+        }
+    }
+    // The history of the Standard and Scientific views (windows7-history.md parts C and D)
+    if (view == View::Standard || view == View::Scientific) {
+        switch (key) {
+        case Key::F2: return "history.edit";
+        case Key::Up:
+        case Key::PageUp: return "history.select_previous";
+        case Key::Down:
+        case Key::PageDown: return "history.select_next";
+        default: break;
         }
     }
     switch (key) {

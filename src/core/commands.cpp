@@ -12,9 +12,10 @@
 #include <vector>
 
 // --- Version ------------------------------------------------------------
-// src/core/commands.cpp 0.4.11
+// src/core/commands.cpp 0.5.12
 
 // --- Version history ----------------------------------------------------
+// v0.5.12: History, Digit grouping, Copy and Paste: their commands (history.select.N carries the entry's index)
 // v0.4.11: The commands of the Statistics view (Add, CAD, the statistics, the list's selection and Delete)
 // v0.3.8: The commands of the Programmer view (bases, word sizes, A to F, logic, shifts, rotations, the 64 bits)
 // v0.2.7: The commands of the Scientific view (functions, brackets, Inv, the angle units, F-E, Exp, Mod)
@@ -212,16 +213,36 @@ constexpr std::array registry = {
     own("statistics.select_previous", CommandKind::StatisticsSelectPrevious),
     own("statistics.select_next", CommandKind::StatisticsSelectNext),
     own("statistics.delete", CommandKind::StatisticsDelete),
+    own("statistics.copy_dataset", CommandKind::StatisticsCopyDataset),
+    own("statistics.edit", CommandKind::StatisticsEdit),
+    own("statistics.cancel_edit", CommandKind::StatisticsCancelEdit),
+    own("statistics.apply_edit", CommandKind::StatisticsApplyEdit),
+    // View and Edit
+    own("view.history", CommandKind::ViewHistory),
+    own("view.digit_grouping", CommandKind::ViewDigitGrouping),
+    own("edit.copy", CommandKind::Copy),
+    own("edit.paste", CommandKind::Paste),
+    // The history of the Standard and Scientific views
+    own("history.select_previous", CommandKind::HistorySelectPrevious),
+    own("history.select_next", CommandKind::HistorySelectNext),
+    own("history.copy", CommandKind::HistoryCopy),
+    own("history.clear", CommandKind::HistoryClear),
+    own("history.edit", CommandKind::HistoryEdit),
+    own("history.cancel_edit", CommandKind::HistoryCancelEdit),
+    own("history.recalculate", CommandKind::HistoryRecalculate),
 };
 
-// "statistics.select.N": N is the item's index, at most nine digits
+// "statistics.select.N" and "history.select.N": N is the item's index, at most nine digits
 std::optional<CommandTarget> selectCommand(std::string_view id)
 {
-    constexpr std::string_view prefix = "statistics.select.";
+    constexpr std::string_view statisticsPrefix = "statistics.select.";
+    constexpr std::string_view historyPrefix = "history.select.";
     constexpr std::size_t mostDigits = 9;
-    if (!id.starts_with(prefix)) {
+    const bool history = id.starts_with(historyPrefix);
+    if (!history && !id.starts_with(statisticsPrefix)) {
         return std::nullopt;
     }
+    const std::string_view prefix = history ? historyPrefix : statisticsPrefix;
     const std::string_view digits = id.substr(prefix.size());
     if (digits.empty() || digits.size() > mostDigits || !std::ranges::all_of(digits, [](char digit) { return digit >= '0' && digit <= '9'; })) {
         return std::nullopt;
@@ -230,7 +251,7 @@ std::optional<CommandTarget> selectCommand(std::string_view id)
     for (const char digit : digits) {
         index = (index * 10) + static_cast<std::size_t>(digit - '0');
     }
-    return CommandTarget{.kind = CommandKind::StatisticsSelect, .engineCommand = Command::CommandNULL, .statistic = Statistic::Mean, .index = index};
+    return CommandTarget{.kind = history ? CommandKind::HistorySelect : CommandKind::StatisticsSelect, .engineCommand = Command::CommandNULL, .statistic = Statistic::Mean, .index = index};
 }
 
 }  // namespace

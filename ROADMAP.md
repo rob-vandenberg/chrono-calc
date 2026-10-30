@@ -48,7 +48,7 @@ Versions (D-013): M0 is 0.0.z, M1 0.1.z, M2 0.2.z and so on; M9 finished is 1.0.
 
 | Task | What | Status |
 |---|---|---|
-| 5.1 | History (Ctrl+H; the engine keeps it, the list and editing are ours), Digit grouping, Copy and Paste, the remembered settings | todo |
+| 5.1 | History (Ctrl+H; the engine keeps it, the list and editing are ours), Digit grouping, Copy and Paste, the remembered settings | done (0.5.12, D-024): the Windows 7 results and behaviours pass (`tests/test_reference_history.cpp`) |
 
 ## M6: Unit conversion
 

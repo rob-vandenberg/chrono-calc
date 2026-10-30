@@ -2,6 +2,8 @@
 
 #include <QAbstractButton>
 #include <QKeyEvent>
+#include <QLineEdit>
+#include <QPalette>
 #include <QMouseEvent>
 #include <QPaintEvent>
 #include <QPainter>
@@ -11,6 +13,7 @@
 #include <QPointF>
 #include <QRect>
 #include <QRectF>
+#include <QString>
 #include <QStringList>
 #include <QWheelEvent>
 #include <QWidget>
@@ -23,9 +26,10 @@
 #include <algorithm>
 
 // --- Version ------------------------------------------------------------
-// src/ui/statisticsparts.cpp 0.4.11
+// src/ui/statisticsparts.cpp 0.5.12
 
 // --- Version history ----------------------------------------------------
+// v0.5.12: The list also shows the history (its own keys, a double click edits); the edit box over a row (D-024)
 // v0.4.11: Initial: the Statistics view's list of values and the buttons that move its selection (D-023)
 
 namespace chrono_calc {
@@ -44,9 +48,10 @@ constexpr double arrowCornerRadius = 2.0;
 
 }  // namespace
 
-StatisticsList::StatisticsList(const StatisticsSpec& spec, QWidget* parent)
+StatisticsList::StatisticsList(const StatisticsSpec& spec, bool history, QWidget* parent)
     : QWidget(parent)
     , m_spec(spec)
+    , m_history(history)
 {
     // Only a click gives it the keyboard focus: the calculator's keys stay with the window otherwise
     setFocusPolicy(Qt::ClickFocus);
@@ -85,6 +90,31 @@ int StatisticsList::selected() const
 int StatisticsList::firstVisible() const
 {
     return m_firstVisible;
+}
+
+QRect StatisticsList::rowArea(int index) const
+{
+    const int row = index - m_firstVisible;
+    if (row < 0 || row >= visibleRows()) {
+        return {};
+    }
+    return {0, row * m_spec.rowHeight, width(), m_spec.rowHeight};
+}
+
+void StatisticsList::scrollTo(int index)
+{
+    if (index < m_firstVisible) {
+        m_firstVisible = index;
+    } else if (index >= m_firstVisible + visibleRows()) {
+        m_firstVisible = index - visibleRows() + 1;
+    }
+    keepInRange();
+    update();
+}
+
+void StatisticsList::setScrollLocked(bool locked)
+{
+    m_scrollLocked = locked;
 }
 
 int StatisticsList::visibleRows() const
@@ -133,10 +163,17 @@ void StatisticsList::mousePressEvent(QMouseEvent* event)
     QWidget::mousePressEvent(event);
 }
 
-// A double click selects, as one click does; the value is not taken into the display (Windows 7)
+// A double click selects, as one click does; the value is not taken into the display (Windows 7). On a history entry
+// it also opens the entry for editing.
 void StatisticsList::mouseDoubleClickEvent(QMouseEvent* event)
 {
     mousePressEvent(event);
+    if (m_history && event->button() == Qt::LeftButton && m_spec.rowHeight > 0) {
+        const int index = m_firstVisible + (event->position().toPoint().y() / m_spec.rowHeight);
+        if (index >= 0 && index < m_values.size()) {
+            emit editChosen(index);
+        }
+    }
 }
 
 void StatisticsList::keyPressEvent(QKeyEvent* event)
@@ -147,6 +184,15 @@ void StatisticsList::keyPressEvent(QKeyEvent* event)
     }
     const int last = static_cast<int>(m_values.size()) - 1;
     const int page = visibleRows() - 1;
+    if (m_history) {
+        // The history (windows7-history.md part C line 4): Page Up and Page Down move by one, Delete does nothing
+        switch (event->key()) {
+        case Qt::Key_PageUp: emit previousChosen(); event->accept(); return;
+        case Qt::Key_PageDown: emit nextChosen(); event->accept(); return;
+        case Qt::Key_Delete: event->accept(); return;
+        default: break;
+        }
+    }
     switch (event->key()) {
     case Qt::Key_Up: emit previousChosen(); break;
     case Qt::Key_Down: emit nextChosen(); break;
@@ -183,12 +229,49 @@ void StatisticsList::keyPressEvent(QKeyEvent* event)
 void StatisticsList::wheelEvent(QWheelEvent* event)
 {
     const int steps = event->angleDelta().y() / 120;
-    if (steps != 0) {
+    if (steps != 0 && !m_scrollLocked) {
         m_firstVisible -= steps;
         keepInRange();
         update();
     }
     event->accept();
+}
+
+ListEditBox::ListEditBox(const QString& text, bool equalsTakes, QWidget* parent)
+    : QLineEdit(text, parent)
+    , m_equalsTakes(equalsTakes)
+{
+    setFrame(false);
+    setAlignment(Qt::AlignRight | Qt::AlignVCenter);
+    setFont(fontWithInkHeight(fixedWidthFont(), valueInkHeight));
+    QPalette colours = palette();
+    colours.setColor(QPalette::Base, qtColour(colours::editBoxFace));
+    colours.setColor(QPalette::Text, qtColour(colours::editBoxText));
+    colours.setColor(QPalette::Highlight, qtColour(colours::listSelected));
+    colours.setColor(QPalette::HighlightedText, qtColour(colours::editBoxText));
+    setPalette(colours);
+    // The caret starts at the beginning of the text (Windows 7)
+    setCursorPosition(0);
+}
+
+void ListEditBox::keyPressEvent(QKeyEvent* event)
+{
+    if (event->key() == Qt::Key_Return || event->key() == Qt::Key_Enter || (m_equalsTakes && event->text() == QStringLiteral("="))) {
+        event->accept();
+        emit taken(text());
+        return;
+    }
+    if (event->key() == Qt::Key_Escape) {
+        event->accept();
+        emit dropped();
+        return;
+    }
+    QLineEdit::keyPressEvent(event);
+    // Every key without Ctrl or Alt belongs to the box, also those it has no use for (F9, Up, F2): none reaches the
+    // calculator while an entry is edited; Ctrl and Alt keys stay the menus' (Ctrl+H, Alt+2)
+    if ((event->modifiers() & (Qt::ControlModifier | Qt::AltModifier)) == Qt::NoModifier) {
+        event->accept();
+    }
 }
 
 SelectionArrow::SelectionArrow(bool pointsUp, QWidget* parent)

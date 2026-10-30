@@ -1,7 +1,8 @@
 # --- Version ------------------------------------------------------------
-# tests/CMakeLists.txt 0.4.11
+# tests/CMakeLists.txt 0.5.12
 
 # --- Version history ----------------------------------------------------
+# v0.5.12: test_reference_history (the Windows 7 History, Digit grouping, Copy and Paste results); the CLI pastes
 # v0.4.11: test_reference_statistics (the Windows 7 Statistics results); the CLI shows the Statistics list
 # v0.3.10: test_keyboardlayouts (which layout a key comes from)
 # v0.3.8: test_reference_programmer (the Windows 7 Programmer results)
@@ -34,6 +35,7 @@ chrono_calc_test(test_standardview chrono_calc_core)
 chrono_calc_test(test_reference_scientific chrono_calc_core)
 chrono_calc_test(test_reference_programmer chrono_calc_core)
 chrono_calc_test(test_reference_statistics chrono_calc_core)
+chrono_calc_test(test_reference_history chrono_calc_core)
 
 # The command-line driver, checked on exit code, output and error text (cli_check.cmake)
 function(chrono_calc_cli_test name exit_code output)
@@ -47,6 +49,8 @@ chrono_calc_cli_test(cli_runs_keys_and_commands 0 "display: 0\nexpression: \nerr
 chrono_calc_cli_test(cli_shows_the_result 0 "^display: 30\n" 12+3*2=)
 # The Statistics view: the list, its count and the selected item; item 1 selected, then Delete
 chrono_calc_cli_test(cli_shows_the_statistics_list 0 "count: 2\nvalues: 5 \\| 4\nselected: 1\n$" view.statistics 5 statistics.add 3 statistics.add 4 statistics.add statistics.select.1 statistics.delete)
+# A pasted text and History: the entries, the selected one, and Copy history
+chrono_calc_cli_test(cli_pastes_and_keeps_the_history 0 "display: 12\nexpression: \nerror: no\nmemory: no\nhistory: 2 \\* 3 \\| 4 \\* 3\nselected entry: 1\ncopied: 2 \\* 3\\\\n4 \\* 3\\\\n\n$" "edit.paste=2*3=4=" history.copy)
 set(CHRONO_CALC_CLI_ERROR "-DERROR=cannot read 'x' in 2x3")
 chrono_calc_cli_test(cli_refuses_an_unknown_argument 2 "^$" 2x3)
 unset(CHRONO_CALC_CLI_ERROR)

@@ -6,11 +6,13 @@
 #include <string>
 #include <string_view>
 #include <unordered_map>
+#include <utility>
 
 // --- Version ------------------------------------------------------------
-// src/core/enginetexts.cpp 0.2.7
+// src/core/enginetexts.cpp 0.5.12
 
 // --- Version history ----------------------------------------------------
+// v0.5.12: Digit grouping: the regional pattern while it is on
 // v0.2.7: Windows 7's names of the Scientific functions (sind, asind, sinr, sing, powe, powten) and of * and /; no
 //         digit grouping, as Windows 7 starts
 // v0.1.5: Windows 7's names in the expression line (sqrt, reciproc); the separators come from the caller
@@ -181,13 +183,18 @@ const std::unordered_map<std::wstring_view, std::wstring_view>& texts()
 }  // namespace
 
 EngineTexts::EngineTexts(Separators separators)
-    : m_separators(separators)
+    : m_separators(std::move(separators))
 {
 }
 
 void EngineTexts::setSeparators(Separators separators)
 {
-    m_separators = separators;
+    m_separators = std::move(separators);
+}
+
+void EngineTexts::setDigitGrouping(bool grouping)
+{
+    m_digitGrouping = grouping;
 }
 
 std::wstring EngineTexts::GetCEngineString(std::wstring_view id)
@@ -199,7 +206,8 @@ std::wstring EngineTexts::GetCEngineString(std::wstring_view id)
         return {m_separators.thousands};
     }
     if (id == L"sGrouping") {
-        return L"0;0";  // no digit grouping: Windows 7 starts with View > Digit grouping off (1234, not 1,234)
+        // Windows 7 starts with View > Digit grouping off (1234, not 1,234)
+        return m_digitGrouping ? m_separators.grouping : std::wstring(L"0;0");
     }
     const auto found = texts().find(id);
     return found == texts().end() ? std::wstring() : std::wstring(found->second);

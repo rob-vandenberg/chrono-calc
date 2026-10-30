@@ -20,9 +20,10 @@
 #include <algorithm>
 
 // --- Version ------------------------------------------------------------
-// src/ui/displaypanel.cpp 0.4.11
+// src/ui/displaypanel.cpp 0.5.12
 
 // --- Version history ----------------------------------------------------
+// v0.5.12: With History shown, the thin line under the history list
 // v0.4.11: The Statistics view: no expression line; the count of the list and the thin line above it
 // v0.2.7: The measures of the current view (Standard or Scientific)
 // v0.1.6: Initial: the display of the Standard view, close to the Windows 7 Calculator (D-005, D-018)
@@ -163,6 +164,10 @@ void DisplayPanel::paintEvent(QPaintEvent* /*event*/)
                          QFontMetrics(m_expressionFont).elidedText(m_expression, Qt::ElideLeft, expressionRect.width()));
     }
 
+    // With History shown, a thin line under the history list
+    if (m_layout->history.list.width > 0) {
+        painter.fillRect(inPanel(*m_layout, m_layout->history.divider), qtColour(colours::listDivider));
+    }
     // The Statistics view: a thin line under the list, then "Count = " and the count
     const StatisticsSpec& statistics = m_layout->statistics;
     if (statistics.list.width > 0) {

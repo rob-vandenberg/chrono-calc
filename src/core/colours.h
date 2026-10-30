@@ -3,9 +3,10 @@
 #include <cstdint>
 
 // --- Version ------------------------------------------------------------
-// src/core/colours.h 0.4.11
+// src/core/colours.h 0.5.12
 
 // --- Version history ----------------------------------------------------
+// v0.5.12: The edit box of History and the Statistics list
 // v0.4.11: The Statistics view's list, count and selection buttons
 // v0.3.8: The flat face of A to F, the bit display; the choice colours serve angle units, bases and word sizes
 // v0.2.7: The faces of function, memory, toggle and greyed buttons; the angle units and the bracket counter
@@ -103,6 +104,10 @@ inline constexpr Colour listDivider{.red = 0xD1, .green = 0xD7, .blue = 0xDE};
 inline constexpr Colour countText{.red = 0x1E, .green = 0x39, .blue = 0x5B};
 inline constexpr Colour arrowFace{.red = 0xE2, .green = 0xED, .blue = 0xFA};
 inline constexpr Colour arrowGlyph{.red = 0x1E, .green = 0x39, .blue = 0x5B};
+// The edit box over a row of the history or the Statistics list (Edit, F2): Windows' plain edit box, white with black
+// text (not measured: Windows 7 draws it with the system's own colours), the selected text in the list's blue
+inline constexpr Colour editBoxFace{.red = 0xFF, .green = 0xFF, .blue = 0xFF};
+inline constexpr Colour editBoxText{.red = 0x00, .green = 0x00, .blue = 0x00};
 // A button under the mouse: a warm golden glow
 inline constexpr Colour buttonHoverBorder{.red = 0xC2, .green = 0x9B, .blue = 0x45};
 inline constexpr Colour buttonHoverTop{.red = 0xFF, .green = 0xF4, .blue = 0xD4};

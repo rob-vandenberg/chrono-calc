@@ -13,9 +13,10 @@
 #include <string_view>
 
 // --- Version ------------------------------------------------------------
-// tests/test_standardview.cpp 0.4.11
+// tests/test_standardview.cpp 0.5.12
 
 // --- Version history ----------------------------------------------------
+// v0.5.12: Standard and Scientific with History shown; History, Digit grouping and each view's Edit menu built
 // v0.4.11: The Statistics view: its 30 buttons, the list in the display, nothing greyed; View > Statistics built
 // v0.3.8: The Programmer view: its 45 buttons, choices and the bits; what each base allows
 // v0.2.7: Both views: Standard and Scientific (the Windows 7 measures of windows7-scientific.md part A), the faces
@@ -228,6 +229,45 @@ private slots:
         }
     }
 
+    // With History shown (windows7-history.md part A): the display is 188 px high with the list at the top, everything
+    // else 125 px lower; Programmer and Statistics do not change
+    static void historyMakesStandardAndScientificTaller()
+    {
+        using chrono_calc::View;
+        for (const View each : {View::Standard, View::Scientific}) {
+            const chrono_calc::ViewLayout& shown = chrono_calc::layoutOf(each, true);
+            const chrono_calc::ViewLayout& hidden = chrono_calc::layoutOf(each);
+            QCOMPARE(shown.clientHeight, 456);
+            QCOMPARE(shown.clientWidth, hidden.clientWidth);
+            QCOMPARE(shown.displayFrame.height, 188);
+            QCOMPARE(shown.history.list.left, 20);
+            QCOMPARE(shown.history.list.top, 46);
+            QCOMPARE(shown.history.list.width, hidden.displayFrame.width - 14);
+            QCOMPARE(shown.history.list.height / shown.history.rowHeight, 5);
+            QCOMPARE(shown.expressionLine.top, 141);
+            QCOMPARE(shown.mainNumber.top, 158);
+            QCOMPARE(shown.memoryMark.top, 169);
+            QCOMPARE(shown.buttons.size(), hidden.buttons.size());
+            for (std::size_t index = 0; index < shown.buttons.size(); ++index) {
+                QCOMPARE(shown.buttons[index].rectangle.top, hidden.buttons[index].rectangle.top + 125);
+                QCOMPARE(shown.buttons[index].rectangle.left, hidden.buttons[index].rectangle.left);
+            }
+            QCOMPARE(hidden.history.list.width, 0);
+        }
+        const chrono_calc::ViewLayout& standard = chrono_calc::layoutOf(View::Standard, true);
+        QCOMPARE(standard.history.upButton.left, 197);
+        QCOMPARE(standard.history.downButton.left, 224);
+        QCOMPARE(standard.history.divider.top, 138);
+        const chrono_calc::ViewLayout& scientific = chrono_calc::layoutOf(View::Scientific, true);
+        QCOMPARE(scientific.history.upButton.left, 441);
+        QCOMPARE(scientific.history.downButton.left, 468);
+        QCOMPARE(scientific.bracketCounter.top, 247);
+        QCOMPARE(scientific.frames.front().top, 207);
+        QCOMPARE(scientific.choices.front().rectangle.top, chrono_calc::layoutOf(View::Scientific).choices.front().rectangle.top + 125);
+        QCOMPARE(&chrono_calc::layoutOf(View::Programmer, true), &chrono_calc::layoutOf(View::Programmer));
+        QCOMPARE(&chrono_calc::layoutOf(View::Statistics, true), &chrono_calc::layoutOf(View::Statistics));
+    }
+
     // Every menu item with a command runs a registered one; View > Standard and Basic carry their dot
     static void everyBuiltMenuItemRunsARegisteredCommand()
     {
@@ -251,8 +291,21 @@ private slots:
                 }
             }
         }
-        QCOMPARE(built, 5);
-        QCOMPARE(greyed, 16);
+        // The views, Basic, History, Digit grouping, Copy, Paste and the four History items; greyed: the side panels, the
+        // worksheets and Help
+        QCOMPARE(built, 13);
+        QCOMPARE(greyed, 8);
+        // Each view's Edit menu runs registered commands; Programmer's History submenu has none (greyed)
+        for (const chrono_calc::View each : {chrono_calc::View::Scientific, chrono_calc::View::Programmer, chrono_calc::View::Statistics}) {
+            for (const chrono_calc::MenuItem& item : chrono_calc::editMenu(each).items) {
+                check(item.entry);
+                for (const chrono_calc::MenuEntry& entry : item.submenu) {
+                    QVERIFY(each != chrono_calc::View::Programmer || entry.commandId.empty());
+                    check(entry);
+                }
+            }
+        }
+        QCOMPARE(chrono_calc::editMenu(chrono_calc::View::Statistics).items.size(), std::size_t{6});
         const auto view = chrono_calc::standardMenus().front();
         QCOMPARE(view.items.front().entry.commandId, std::string_view("view.standard"));
         QVERIFY(view.items.front().entry.chosen);

@@ -3,6 +3,7 @@
 #include <QAction>
 #include <QActionGroup>
 #include <QChar>
+#include <QClipboard>
 #include <QCloseEvent>
 #include <QGuiApplication>
 #include <QKeyEvent>
@@ -14,6 +15,7 @@
 #include <QMainWindow>
 #include <QMenu>
 #include <QMenuBar>
+#include <QMimeData>
 #include <QPaintEvent>
 #include <QPainter>
 #include <QPoint>
@@ -47,11 +49,14 @@
 #include <optional>
 #include <string>
 #include <string_view>
+#include <vector>
 
 // --- Version ------------------------------------------------------------
-// src/ui/mainwindow.cpp 0.4.11
+// src/ui/mainwindow.cpp 0.5.12
 
 // --- Version history ----------------------------------------------------
+// v0.5.12: History (the list in a taller display, the edit box), Digit grouping, Copy and Paste with the clipboard,
+//          the Edit menu of each view, History and Digit grouping remembered (D-024)
 // v0.4.11: The Statistics view: its size, the list of values with its selection buttons, the count (D-023)
 // v0.3.10: On a layout that is not Latin a key's place letter comes first, a sign only where the view has no command
 // v0.3.9: A letter of another script (Russian, Greek, Arabic) is read as the Latin letter at its key's position
@@ -68,6 +73,9 @@ namespace {
 
 const QString positionKey = QStringLiteral("window/position");
 const QString viewKey = QStringLiteral("window/view");
+// Windows 7 keeps History shown (ShowHistory) and Digit grouping (UseSep) as well (windows7-history.md part H)
+const QString historyKey = QStringLiteral("window/history");
+const QString groupingKey = QStringLiteral("window/digitGrouping");
 
 const QString scientificName = QStringLiteral("scientific");
 const QString programmerName = QStringLiteral("programmer");
@@ -113,6 +121,24 @@ protected:
         painter.fillRect(rect(), gradient);
     }
 };
+
+// The character a key types for a command of the edit box: a digit, an operator, a bracket, the decimal point, = (in
+// the history's edit box = calculates the edit); nothing for any other command
+QString typedCharacterOf(std::string_view commandId, wchar_t decimal)
+{
+    if (commandId.starts_with("digit.") && commandId.size() == std::string_view("digit.0").size()) {
+        return QString(QLatin1Char(commandId.back())).toUpper();
+    }
+    static const std::map<std::string_view, QString> characters = {
+        {"add", QStringLiteral("+")}, {"subtract", QStringLiteral("-")}, {"multiply", QStringLiteral("*")},
+        {"divide", QStringLiteral("/")}, {"open_bracket", QStringLiteral("(")}, {"close_bracket", QStringLiteral(")")},
+        {"power", QStringLiteral("^")}};
+    if (commandId == decimalCommand) {
+        return {QChar(decimal)};
+    }
+    const auto found = characters.find(commandId);
+    return found == characters.end() ? QString() : found->second;
+}
 
 QRect toRect(Rectangle rectangle)
 {
@@ -186,6 +212,10 @@ std::optional<Key> keyOf(int qtKey)
     case Qt::Key_F8: return Key::F8;
     case Qt::Key_F9: return Key::F9;
     case Qt::Key_F12: return Key::F12;
+    case Qt::Key_Up: return Key::Up;
+    case Qt::Key_Down: return Key::Down;
+    case Qt::Key_PageUp: return Key::PageUp;
+    case Qt::Key_PageDown: return Key::PageDown;
     default: return std::nullopt;
     }
 }
@@ -197,7 +227,7 @@ MainWindow::MainWindow(QWidget* parent)
 {
 }
 
-MainWindow::MainWindow(Separators separators, QWidget* parent)
+MainWindow::MainWindow(const Separators& separators, QWidget* parent)
     : QMainWindow(parent)
     , m_calculator(separators)
     , m_separators(separators)
@@ -209,8 +239,16 @@ MainWindow::MainWindow(Separators separators, QWidget* parent)
     m_area->setFocusPolicy(Qt::StrongFocus);
     setCentralWidget(m_area);
     m_display->setObjectName(QStringLiteral("display"));
-    // The view the calculator was closed in, as Windows 7 remembers it
-    const QString savedView = QSettings().value(viewKey).toString();
+    // Digit grouping, History and the view as the calculator was closed with, as Windows 7 remembers them; History
+    // first, while the calculator is in Standard, where it can be shown
+    const QSettings settings;
+    if (settings.value(groupingKey).toBool()) {
+        m_calculator.run("view.digit_grouping");
+    }
+    if (settings.value(historyKey).toBool()) {
+        m_calculator.run("view.history");
+    }
+    const QString savedView = settings.value(viewKey).toString();
     if (savedView == scientificName) {
         m_calculator.run("view.scientific");
     } else if (savedView == programmerName) {
@@ -219,6 +257,9 @@ MainWindow::MainWindow(Separators separators, QWidget* parent)
         m_calculator.run("view.statistics");
     }
     buildView(m_calculator.view());
+    buildEditMenu();
+    connect(QGuiApplication::clipboard(), &QClipboard::dataChanged, this, [this] { updatePaste(); });
+    updatePaste();
     // The window has the size of its view, as in Windows 7: it cannot be resized or maximised
     layout()->setSizeConstraint(QLayout::SetFixedSize);
     setWindowFlag(Qt::WindowMaximizeButtonHint, false);
@@ -229,7 +270,8 @@ MainWindow::MainWindow(Separators separators, QWidget* parent)
 
 Separators MainWindow::systemSeparators()
 {
-    const QLocale locale = QLocale::system();
+    // The default locale is the system's (main sets no other)
+    const QLocale locale;
     Separators separators;
     const QString decimal = locale.decimalPoint();
     const QString thousands = locale.groupSeparator();
@@ -239,6 +281,15 @@ Separators MainWindow::systemSeparators()
     if (thousands.size() == 1) {
         separators.thousands = thousands.at(0).unicode();
     }
+    // The grouping pattern, in the engine's form: the sizes of the last two groups the locale writes a long number
+    // with ("3;0" every three, India "3;2;0" three and then every two)
+    const QStringList groups = locale.toString(Q_INT64_C(1234567890123)).split(thousands);
+    if (!thousands.isEmpty() && groups.size() >= 3) {
+        const qsizetype first = groups.at(groups.size() - 1).size();
+        const qsizetype second = groups.at(groups.size() - 2).size();
+        separators.grouping = first == second ? QStringLiteral("%1;0").arg(first).toStdWString()
+                                              : QStringLiteral("%1;%2;0").arg(first).arg(second).toStdWString();
+    }
     return separators;
 }
 
@@ -246,23 +297,47 @@ void MainWindow::buildMenus()
 {
     for (const Menu& menu : standardMenus()) {
         QMenu* qtMenu = menuBar()->addMenu(fromView(menu.title));
-        std::map<int, QActionGroup*> dotGroups;
-        for (const MenuItem& item : menu.items) {
-            if (item.entry.separatorBefore) {
-                qtMenu->addSeparator();
-            }
-            if (item.submenu.empty()) {
-                addMenuEntry(qtMenu, item.entry, dotGroups);
-                continue;
-            }
-            QMenu* submenu = qtMenu->addMenu(fromView(item.entry.text));
-            for (const MenuEntry& entry : item.submenu) {
-                if (entry.separatorBefore) {
-                    submenu->addSeparator();
-                }
-                addMenuEntry(submenu, entry, dotGroups);
-            }
+        if (menu.title == editMenu(View::Standard).title) {
+            m_editMenu = qtMenu;
+            // Paste is greyed while the clipboard holds no text (Windows 7)
+            connect(qtMenu, &QMenu::aboutToShow, this, [this] { updatePaste(); });
+            continue;
         }
+        addMenuItems(qtMenu, menu.items);
+    }
+}
+
+void MainWindow::buildEditMenu()
+{
+    m_editMenu->clear();
+    m_pasteAction = nullptr;
+    m_editAction = nullptr;
+    addMenuItems(m_editMenu, editMenu(m_calculator.view()).items);
+    updatePaste();
+}
+
+void MainWindow::addMenuItems(QMenu* menu, const std::vector<MenuItem>& items)
+{
+    std::map<int, QActionGroup*> dotGroups;
+    for (const MenuItem& item : items) {
+        if (item.entry.separatorBefore) {
+            menu->addSeparator();
+        }
+        if (item.submenu.empty()) {
+            addMenuEntry(menu, item.entry, dotGroups);
+            continue;
+        }
+        QMenu* submenu = menu->addMenu(fromView(item.entry.text));
+        bool built = false;
+        for (const MenuEntry& entry : item.submenu) {
+            if (entry.separatorBefore) {
+                submenu->addSeparator();
+            }
+            addMenuEntry(submenu, entry, dotGroups);
+            built = built || !entry.commandId.empty();
+        }
+        // A submenu with nothing usable is greyed (Programmer's History)
+        submenu->setEnabled(built);
     }
 }
 
@@ -272,7 +347,7 @@ void MainWindow::addMenuEntry(QMenu* menu, const MenuEntry& entry, std::map<int,
     const bool built = !entry.commandId.empty();
     action->setEnabled(built);
     if (!entry.shortcut.empty()) {
-        if (built) {
+        if (built && !entry.shortcutShownOnly) {
             action->setShortcut(QKeySequence(fromView(entry.shortcut)));
         } else {
             // A greyed entry shows its key but does not take it
@@ -292,12 +367,36 @@ void MainWindow::addMenuEntry(QMenu* menu, const MenuEntry& entry, std::map<int,
     }
     if (built) {
         const std::string_view commandId = entry.commandId;
-        connect(action, &QAction::triggered, this, [this, commandId] { runCommand(commandId); });
-        if (commandId.starts_with("view.") && commandId != "view.basic") {
+        connectMenuAction(action, commandId);
+        // The four views (one dot among them); Basic, History and Digit grouping are not views
+        if (commandId == "view.standard" || commandId == "view.scientific" || commandId == "view.programmer"
+            || commandId == "view.statistics") {
             action->setData(fromView(commandId));
             m_viewActions.push_back(action);
         }
     }
+}
+
+void MainWindow::connectMenuAction(QAction* action, std::string_view commandId)
+{
+    if (commandId == "view.history") {
+        m_historyAction = action;
+    } else if (commandId == "view.digit_grouping") {
+        m_groupingAction = action;
+    } else if (commandId == "edit.paste") {
+        m_pasteAction = action;
+    } else if (commandId == "history.edit" || commandId == "statistics.edit") {
+        m_editAction = action;
+    }
+    connect(action, &QAction::triggered, this, [this, commandId] {
+        if (commandId == "edit.paste") {
+            paste();
+        } else if (commandId == "history.edit" && m_editBox != nullptr) {
+            takeEdit(m_editBox->text());  // Recalculate (Windows 7)
+        } else {
+            runCommand(commandId);
+        }
+    });
 }
 
 void MainWindow::buildView(View view)
@@ -313,8 +412,16 @@ void MainWindow::buildView(View view)
     m_bracketCounter = nullptr;
     m_bitDisplay = nullptr;
     m_statisticsList = nullptr;
+    if (m_editBox != nullptr) {
+        m_editBox->hide();
+        m_editBox->deleteLater();
+        m_editBox = nullptr;
+    }
+    m_editList = nullptr;
+    m_historyList = nullptr;
 
-    const ViewLayout& layout = layoutOf(view);
+    m_builtHistory = m_calculator.isHistoryShown();
+    const ViewLayout& layout = layoutOf(view, m_builtHistory);
     m_builtView = view;
     m_area->setFixedSize(layout.clientWidth, layout.clientHeight);
     m_display->setViewLayout(layout);
@@ -344,31 +451,7 @@ void MainWindow::buildView(View view)
         m_bitDisplay->show();
         m_viewParts.push_back(m_bitDisplay);
     }
-    if (layout.statistics.list.width > 0) {
-        // The list and its two selection buttons lie on the display (Windows 7)
-        const StatisticsSpec& statistics = layout.statistics;
-        m_statisticsList = new StatisticsList(statistics, m_area);
-        m_statisticsList->setObjectName(QStringLiteral("statistics.list"));
-        m_statisticsList->setGeometry(toRect(statistics.list));
-        connect(m_statisticsList, &StatisticsList::indexChosen, this, [this](int index) { selectValue(index); });
-        connect(m_statisticsList, &StatisticsList::previousChosen, this, [this] { runCommand("statistics.select_previous"); });
-        connect(m_statisticsList, &StatisticsList::nextChosen, this, [this] { runCommand("statistics.select_next"); });
-        connect(m_statisticsList, &StatisticsList::deleteChosen, this, [this] { runCommand("statistics.delete"); });
-        m_statisticsList->show();
-        m_viewParts.push_back(m_statisticsList);
-        for (const bool up : {true, false}) {
-            auto* arrow = new SelectionArrow(up, m_area);
-            arrow->setObjectName(up ? QStringLiteral("statistics.up") : QStringLiteral("statistics.down"));
-            arrow->setGeometry(toRect(up ? statistics.upButton : statistics.downButton));
-            // The selection moves, and the list takes the keyboard focus (Windows 7)
-            connect(arrow, &SelectionArrow::clicked, this, [this, up] {
-                m_statisticsList->setFocus();
-                runCommand(up ? "statistics.select_previous" : "statistics.select_next");
-            });
-            arrow->show();
-            m_viewParts.push_back(arrow);
-        }
-    }
+    buildLists(layout);
     if (layout.bracketCounter.width > 0) {
         m_bracketCounter = new BracketCounter(m_area);
         m_bracketCounter->setObjectName(QStringLiteral("brackets"));
@@ -393,14 +476,200 @@ void MainWindow::buildView(View view)
     }
 }
 
+// The Statistics view's list and the history list, each with its two selection buttons, on the display (Windows 7)
+void MainWindow::buildLists(const ViewLayout& layout)
+{
+    if (layout.statistics.list.width > 0) {
+        const StatisticsSpec& statistics = layout.statistics;
+        m_statisticsList = new StatisticsList(statistics, false, m_area);
+        m_statisticsList->setObjectName(QStringLiteral("statistics.list"));
+        m_statisticsList->setGeometry(toRect(statistics.list));
+        connect(m_statisticsList, &StatisticsList::indexChosen, this, [this](int index) { selectValue(index); });
+        connect(m_statisticsList, &StatisticsList::previousChosen, this, [this] { runCommand("statistics.select_previous"); });
+        connect(m_statisticsList, &StatisticsList::nextChosen, this, [this] { runCommand("statistics.select_next"); });
+        connect(m_statisticsList, &StatisticsList::deleteChosen, this, [this] { runCommand("statistics.delete"); });
+        m_statisticsList->show();
+        m_viewParts.push_back(m_statisticsList);
+        for (const bool up : {true, false}) {
+            auto* arrow = new SelectionArrow(up, m_area);
+            arrow->setObjectName(up ? QStringLiteral("statistics.up") : QStringLiteral("statistics.down"));
+            arrow->setGeometry(toRect(up ? statistics.upButton : statistics.downButton));
+            // The selection moves, and the list takes the keyboard focus (Windows 7)
+            connect(arrow, &SelectionArrow::clicked, this, [this, up] {
+                m_statisticsList->setFocus();
+                runCommand(up ? "statistics.select_previous" : "statistics.select_next");
+            });
+            arrow->show();
+            m_viewParts.push_back(arrow);
+        }
+    }
+    buildHistoryList(layout);
+}
+
+void MainWindow::buildHistoryList(const ViewLayout& layout)
+{
+    if (layout.history.list.width > 0) {
+        const StatisticsSpec& history = layout.history;
+        m_historyList = new StatisticsList(history, true, m_area);
+        m_historyList->setObjectName(QStringLiteral("history.list"));
+        m_historyList->setGeometry(toRect(history.list));
+        connect(m_historyList, &StatisticsList::indexChosen, this, [this](int index) { chooseEntry(index); });
+        connect(m_historyList, &StatisticsList::previousChosen, this, [this] { runListCommand("history.select_previous"); });
+        connect(m_historyList, &StatisticsList::nextChosen, this, [this] { runListCommand("history.select_next"); });
+        connect(m_historyList, &StatisticsList::editChosen, this, [this] { runCommand("history.edit"); });
+        m_historyList->show();
+        m_viewParts.push_back(m_historyList);
+        for (const bool up : {true, false}) {
+            auto* arrow = new SelectionArrow(up, m_area);
+            arrow->setObjectName(up ? QStringLiteral("history.up") : QStringLiteral("history.down"));
+            arrow->setGeometry(toRect(up ? history.upButton : history.downButton));
+            // The selection moves and the entry's result shows; the keyboard focus stays where it is (Windows 7)
+            connect(arrow, &SelectionArrow::clicked, this,
+                    [this, up] { runCommand(up ? "history.select_previous" : "history.select_next"); });
+            arrow->show();
+            m_viewParts.push_back(arrow);
+        }
+    }
+}
+
 void MainWindow::runCommand(std::string_view commandId)
 {
+    // A view change applies an edit of the history first (Windows 7, windows7-history.md part D line 2)
+    if (m_editBox != nullptr && m_calculator.editedHistoryEntry()
+        && (commandId == "view.standard" || commandId == "view.scientific" || commandId == "view.programmer"
+            || commandId == "view.statistics")) {
+        m_calculator.run("history.recalculate", m_editBox->text().toStdWString());
+    }
     m_calculator.run(commandId);
+    if (const std::optional<std::wstring> copied = m_calculator.takeCopiedText()) {
+        QGuiApplication::clipboard()->setText(QString::fromStdWString(*copied));
+    }
+    if (commandId == "view.history") {
+        QSettings().setValue(historyKey, m_calculator.isHistoryShown());
+    } else if (commandId == "view.digit_grouping") {
+        QSettings().setValue(groupingKey, m_calculator.isDigitGrouping());
+    }
     showCalculator();
+}
+
+void MainWindow::paste()
+{
+    const QString text = QGuiApplication::clipboard()->text();
+    if (!text.isEmpty()) {
+        m_calculator.run("edit.paste", text.toStdWString());
+    }
+    showCalculator();
+}
+
+void MainWindow::updatePaste()
+{
+    if (m_pasteAction != nullptr) {
+        const QMimeData* data = QGuiApplication::clipboard()->mimeData();
+        m_pasteAction->setEnabled(data != nullptr && data->hasText() && !data->text().isEmpty());
+    }
+}
+
+void MainWindow::chooseEntry(int index)
+{
+    if (index >= 0) {
+        m_calculator.run("history.select." + std::to_string(index));
+    }
+    showCalculator();
+}
+
+void MainWindow::runListCommand(std::string_view commandId)
+{
+    runCommand(commandId);
+    m_area->setFocus();
+}
+
+void MainWindow::showEditBox()
+{
+    std::optional<std::size_t> edited = m_calculator.editedHistoryEntry();
+    StatisticsList* list = m_historyList;
+    const bool history = edited.has_value();
+    if (!history) {
+        edited = m_calculator.editedStatisticsValue();
+        list = m_statisticsList;
+    }
+    if (!edited || list == nullptr) {
+        closeEditBox();
+        return;
+    }
+    const int index = static_cast<int>(*edited);
+    if (m_editBox != nullptr || index >= list->values().size()) {
+        return;
+    }
+    // Over the row, one pixel in from the list's left edge (Windows 7: 21, 82, 223, 18 for the third row); the row is
+    // brought into view first, and the list does not scroll while the box is open
+    list->scrollTo(index);
+    const QRect row = list->rowArea(index);
+    m_editBox = new ListEditBox(list->values().at(index), history, m_area);
+    m_editBox->setObjectName(QStringLiteral("edit.box"));
+    m_editBox->setGeometry(list->x() + 1, list->y() + row.top(), list->width() - 1, row.height());
+    connect(m_editBox, &ListEditBox::taken, this, [this](const QString& text) { takeEdit(text); });
+    connect(m_editBox, &ListEditBox::dropped, this, [this] { dropEdit(); });
+    m_editList = list;
+    list->setScrollLocked(true);
+    m_editBox->show();
+    m_editBox->setFocus();
+}
+
+// The edit box goes; the list it belongs to takes the keyboard focus back when the box had it (Windows 7)
+void MainWindow::closeEditBox()
+{
+    if (m_editBox == nullptr) {
+        return;
+    }
+    const bool focused = m_editBox->hasFocus();
+    m_editBox->hide();
+    m_editBox->deleteLater();
+    m_editBox = nullptr;
+    if (m_editList != nullptr) {
+        m_editList->setScrollLocked(false);
+        if (focused) {
+            m_editList->setFocus();
+        }
+    }
+    m_editList = nullptr;
+}
+
+void MainWindow::takeEdit(const QString& text)
+{
+    StatisticsList* list = m_editList;
+    m_calculator.run(m_calculator.editedHistoryEntry() ? "history.recalculate" : "statistics.apply_edit", text.toStdWString());
+    showCalculator();
+    if (m_editBox == nullptr && list != nullptr) {
+        list->setFocus();
+    }
+}
+
+void MainWindow::dropEdit()
+{
+    StatisticsList* list = m_editList;
+    m_calculator.run(m_calculator.editedHistoryEntry() ? "history.cancel_edit" : "statistics.cancel_edit");
+    showCalculator();
+    if (list != nullptr) {
+        list->setFocus();
+    }
 }
 
 void MainWindow::runButtonCommand(std::string_view commandId)
 {
+    // While an entry or a value is edited, a calculator button types its character into the edit box, as a click does
+    // in Windows 7 (windows7-history.md part D line 3); a button without one does nothing then
+    if (m_editBox != nullptr) {
+        if (commandId == "equals" && m_calculator.editedHistoryEntry()) {
+            takeEdit(m_editBox->text());
+            return;
+        }
+        const QString typed = typedCharacterOf(commandId, m_separators.decimal);
+        if (!typed.isEmpty()) {
+            m_editBox->insert(typed);
+        }
+        m_editBox->setFocus();
+        return;
+    }
     if (m_statisticsList != nullptr && m_statisticsList->hasFocus()) {
         m_area->setFocus();
     }
@@ -439,12 +708,13 @@ void MainWindow::runKeyCommand(std::string_view commandId)
 void MainWindow::showCalculator()
 {
     const View view = m_calculator.view();
-    if (view != m_builtView) {
+    if (view != m_builtView || m_calculator.isHistoryShown() != m_builtHistory) {
+        const bool viewChanged = view != m_builtView;
         buildView(view);
-        QSettings().setValue(viewKey, nameOf(view));
-    }
-    for (QAction* action : m_viewActions) {
-        action->setChecked(action->data().toString() == QStringLiteral("view.") + nameOf(view));
+        if (viewChanged) {
+            QSettings().setValue(viewKey, nameOf(view));
+            buildEditMenu();
+        }
     }
     m_display->showValues(QString::fromStdWString(m_calculator.display()), QString::fromStdWString(m_calculator.expression()),
                           m_calculator.hasMemory());
@@ -468,6 +738,35 @@ void MainWindow::showCalculator()
     if (m_bracketCounter != nullptr) {
         m_bracketCounter->showCount(m_calculator.openBrackets());
     }
+    showLists();
+    showEditBox();
+    // After the edit box: it decides whether Edit reads Recalculate
+    showMenuStates();
+}
+
+void MainWindow::showMenuStates()
+{
+    if (m_historyAction != nullptr) {
+        // Greyed in Programmer and Statistics, where it keeps its tick (Windows 7)
+        m_historyAction->setChecked(m_calculator.isHistoryShown());
+        m_historyAction->setEnabled(m_calculator.isAvailable("view.history"));
+    }
+    if (m_groupingAction != nullptr) {
+        m_groupingAction->setChecked(m_calculator.isDigitGrouping());
+    }
+    if (m_editAction != nullptr) {
+        // While a history entry is edited, Edit reads Recalculate (=); the Statistics view's Edit is greyed then
+        const bool editingHistory = m_calculator.editedHistoryEntry().has_value() && m_editBox != nullptr;
+        m_editAction->setText(editingHistory ? tr("&Recalculate") + QStringLiteral("\t=") : tr("&Edit") + QStringLiteral("\tF2"));
+        m_editAction->setEnabled(!m_calculator.editedStatisticsValue());
+    }
+    for (QAction* action : m_viewActions) {
+        action->setChecked(action->data().toString() == QStringLiteral("view.") + nameOf(m_calculator.view()));
+    }
+}
+
+void MainWindow::showLists()
+{
     if (m_statisticsList != nullptr) {
         QStringList values;
         for (const std::wstring& value : m_calculator.statisticsValues()) {
@@ -477,19 +776,25 @@ void MainWindow::showCalculator()
         m_statisticsList->showValues(values, selected ? static_cast<int>(*selected) : -1);
         m_display->showCount(static_cast<int>(m_calculator.statisticsCount()));
     }
+    if (m_historyList != nullptr) {
+        QStringList entries;
+        for (const std::wstring& entry : m_calculator.historyEntries()) {
+            entries.append(QString::fromStdWString(entry));
+        }
+        const std::optional<std::size_t> selected = m_calculator.selectedHistoryEntry();
+        m_historyList->showValues(entries, selected ? static_cast<int>(*selected) : -1);
+    }
 }
 
-void MainWindow::keyPressEvent(QKeyEvent* event)
+std::optional<std::string_view> MainWindow::commandOfKey(const QKeyEvent& event, Qt::KeyboardModifiers modifiers) const
 {
-    // The number pad and AltGr (the third character of a key) change no command
-    const Qt::KeyboardModifiers modifiers = event->modifiers() & ~(Qt::KeypadModifier | Qt::GroupSwitchModifier);
     // On a layout that is not Latin the letter of the key's place comes first, as in Windows 7: a sign on that place
     // counts only where the view has no command for the letter (the Greek Q key is x² in Scientific, nothing in Standard)
     const bool readable = modifiers == Qt::NoModifier || modifiers == Qt::ShiftModifier || modifiers == Qt::ControlModifier;
-    const std::optional<int> placeKey = readable ? placeKeyOf(*event) : std::nullopt;
+    const std::optional<int> placeKey = readable ? placeKeyOf(event) : std::nullopt;
     std::optional<std::string_view> command;
     if (modifiers == Qt::ControlModifier) {
-        const QString letter = QKeySequence(placeKey.value_or(event->key())).toString();
+        const QString letter = QKeySequence(placeKey.value_or(event.key())).toString();
         if (letter.size() == 1) {
             command = commandForControlLetter(letter.at(0).unicode(), m_calculator.view());
         }
@@ -500,24 +805,44 @@ void MainWindow::keyPressEvent(QKeyEvent* event)
         }
         if (command) {
             // the place's letter has a command here
-        } else if (const auto key = keyOf(event->key())) {
+        } else if (const auto key = keyOf(event.key())) {
             command = commandForKey(*key, m_calculator.view());
-        } else if (event->key() >= Qt::Key_A && event->key() <= Qt::Key_Z) {
+        } else if (event.key() >= Qt::Key_A && event.key() <= Qt::Key_Z) {
             // A letter is read from its key, not its character, as Windows 7 does: without Shift it is the small
             // letter, with Shift the capital, whatever Caps Lock is (S is sin with Caps Lock on, Shift+S is nothing)
-            command = commandForCharacter(static_cast<char32_t>(first + (event->key() - Qt::Key_A)),
+            command = commandForCharacter(static_cast<char32_t>(first + (event.key() - Qt::Key_A)),
                                           m_calculator.view());
-        } else if (event->text().size() == 1) {
-            command = commandForCharacter(event->text().at(0).unicode(), m_calculator.view());
+        } else if (event.text().size() == 1) {
+            command = commandForCharacter(event.text().at(0).unicode(), m_calculator.view());
         }
     }
+    return command;
+}
+
+void MainWindow::keyPressEvent(QKeyEvent* event)
+{
+    // The number pad and AltGr (the third character of a key) change no command
+    const Qt::KeyboardModifiers modifiers = event->modifiers() & ~(Qt::KeypadModifier | Qt::GroupSwitchModifier);
+    // Ctrl+Insert copies, as in Windows 7; Shift+Insert pastes, as everywhere on the desktop
+    if (event->key() == Qt::Key_Insert && (modifiers == Qt::ControlModifier || modifiers == Qt::ShiftModifier)) {
+        event->accept();
+        if (modifiers == Qt::ControlModifier) {
+            runCommand("edit.copy");
+        } else {
+            paste();
+        }
+        return;
+    }
+    const std::optional<std::string_view> command = commandOfKey(*event, modifiers);
     if (!command) {
         QMainWindow::keyPressEvent(event);
         return;
     }
     event->accept();
-    // Add (Enter) and C (Escape) take the keyboard focus back from the list (Windows 7)
-    if (m_statisticsList != nullptr && m_statisticsList->hasFocus() && (*command == "statistics.add" || *command == "clear")) {
+    // Add or = (Enter) and C (Escape) take the keyboard focus back from the list (Windows 7)
+    const bool listFocused = (m_statisticsList != nullptr && m_statisticsList->hasFocus())
+                             || (m_historyList != nullptr && m_historyList->hasFocus());
+    if (listFocused && (*command == "statistics.add" || *command == "equals" || *command == "clear")) {
         m_area->setFocus();
     }
     runKeyCommand(*command);
