@@ -13,9 +13,10 @@
 #include <string_view>
 
 // --- Version ------------------------------------------------------------
-// tests/test_calculator.cpp 0.1.5
+// tests/test_calculator.cpp 0.1.6
 
 // --- Version history ----------------------------------------------------
+// v0.1.6: The keys without a character and the Ctrl keys of the memory; view.basic changes nothing
 // v0.1.5: The one memory is the engine's own register; the start value comes from the engine
 // v0.0.4: Initial: the engine wrapper, the command registry, the typed keys and the engine texts
 
@@ -160,6 +161,50 @@ private slots:
             QVERIFY2(chrono_calc::findCommand(command).has_value(), command.data());
         }
         QVERIFY(!chrono_calc::commandForCharacter(U'x').has_value());
+    }
+
+    // The keys without a character and the Ctrl letters give the commands of Windows 7
+    static void everyKeyGivesItsWindows7Command()
+    {
+        using chrono_calc::Key;
+        QCOMPARE(chrono_calc::commandForKey(Key::Escape).value_or(""), "clear");
+        QCOMPARE(chrono_calc::commandForKey(Key::Delete).value_or(""), "clear_entry");
+        QCOMPARE(chrono_calc::commandForKey(Key::Backspace).value_or(""), "backspace");
+        QCOMPARE(chrono_calc::commandForKey(Key::Enter).value_or(""), "equals");
+        QCOMPARE(chrono_calc::commandForKey(Key::F9).value_or(""), "negate");
+        QCOMPARE(chrono_calc::commandForControlLetter(U'l').value_or(""), "memory.clear");
+        QCOMPARE(chrono_calc::commandForControlLetter(U'R').value_or(""), "memory.recall");
+        QCOMPARE(chrono_calc::commandForControlLetter(U'M').value_or(""), "memory.store");
+        QCOMPARE(chrono_calc::commandForControlLetter(U'p').value_or(""), "memory.add");
+        QCOMPARE(chrono_calc::commandForControlLetter(U'Q').value_or(""), "memory.subtract");
+        QVERIFY(!chrono_calc::commandForControlLetter(U'x').has_value());
+        for (const Key key : {Key::Escape, Key::Delete, Key::Backspace, Key::Enter, Key::F9}) {
+            QVERIFY(chrono_calc::findCommand(chrono_calc::commandForKey(key).value_or("")).has_value());
+        }
+    }
+
+    // A percent right after = takes the result (Windows 7, D-019); not measured, worked out by the same rule:
+    // the memory stays as it was, a digit after = starts a new number, and % alone takes the result itself
+    static void aPercentAfterEqualsLeavesTheRestAsItWas()
+    {
+        chrono_calc::Calculator calculator({.decimal = L',', .thousands = L'.'});
+        QCOMPARE(text(after(calculator, {"digit.7", "memory.store", "clear", "digit.2", "multiply", "digit.3", "equals", "digit.5", "percent"})),
+                 QStringLiteral("0,3"));
+        QVERIFY(calculator.hasMemory());
+        QCOMPARE(text(after(calculator, {"memory.recall"})), QStringLiteral("7"));
+        QCOMPARE(text(after(calculator, {"clear", "digit.2", "multiply", "digit.3", "equals", "digit.7"})), QStringLiteral("7"));
+        QCOMPARE(text(after(calculator, {"clear", "digit.2", "multiply", "digit.3", "equals", "percent"})), QStringLiteral("0,36"));
+    }
+
+    // View > Basic only hides a side panel: the number, the expression line and the memory stay
+    static void basicChangesNothing()
+    {
+        chrono_calc::Calculator calculator;
+        after(calculator, {"digit.5", "memory.store", "digit.2", "add", "digit.3"});
+        QVERIFY(calculator.run("view.basic"));
+        QCOMPARE(text(calculator.display()), QStringLiteral("3"));
+        QCOMPARE(text(calculator.expression()), QStringLiteral("2 +"));
+        QVERIFY(calculator.hasMemory());
     }
 
     // The engine stores a key to a temporary string when it looks up a text number it was given no text for

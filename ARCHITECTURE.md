@@ -7,10 +7,10 @@ How Chrono Calc is built. The design is in place before the code; parts marked *
 | Folder | What is in it |
 |---|---|
 | `third_party/calculator/` | The engine core from microsoft/calculator commit `79e1ac5`, unchanged (`CalcManager/`), with `LICENSE`, `SOURCE.md` (what was copied, left out and why), our `shim/pch.h` and `CMakeLists.txt` (D-014) |
-| `src/core/` | Plain C++ without Qt: `version` (the project version), `calculator` (the engine wrapper, D-015), `commands` (the command registry), `enginetexts` (the engine's texts), `keys` (typed characters); later the side-panel calculations and the colours |
-| `src/ui/` | Qt Widgets: `mainwindow.h` (the main window, empty so far); later the button grids of every view, the side panels, the dialogs |
-| `src/app/` | `main.cpp`: starts Qt, builds the window, nothing else; `cli.cpp`: `chrono-calc-cli`, the calculator without a screen (D-016) |
-| `tests/` | Qt Test cases, one program per file, run with CTest (20 seconds at most, no screen): `test_version`, `test_mainwindow`, `test_layers` (the layer check); `tests/engine/`: Microsoft's 71 engine tests ported to Qt Test |
+| `src/core/` | Plain C++ without Qt: `version` (the project version), `calculator` (the engine wrapper, D-015), `commands` (the command registry), `enginetexts` (the engine's texts), `keys` (typed characters and keys), `standardlayout` (the Standard view's measures and buttons), `menus` (View, Edit, Help), `colours` (every colour); later the side-panel calculations |
+| `src/ui/` | Qt Widgets: `mainwindow` (the window: menus, keys, the Standard view, the remembered position), `calcbutton` (our button drawing), `displaypanel` (the display), `look` (Fusion with our colours only); later the other views, the side panels, the dialogs |
+| `src/app/` | `main.cpp`: starts Qt, sets the look and the settings name, builds the window, nothing else; `cli.cpp`: `chrono-calc-cli`, the calculator without a screen (D-016) |
+| `tests/` | Qt Test cases, one program per file, run with CTest (20 seconds at most, no screen): `test_version`, `test_mainwindow` (the window, keys, menus, position), `test_calculator`, `test_standardview` (buttons and menus), `test_reference_standard` (Windows 7 results), `test_layers` (the layer check); `tests/engine/`: Microsoft's 71 engine tests ported to Qt Test |
 | `packaging/` | The `.desktop` file (Calc), the AppStream metainfo, the icon, CPack settings *(planned)* |
 | `scratchpad/` | Working scripts of the sessions; git-ignored |
 
@@ -49,4 +49,4 @@ Every user action is a command in `core` (AGENTS.md 4.3): an id (for example `st
 
 ## 6. Settings
 
-What the Windows 7 Calculator remembers (the last view, Digit grouping, the side panel shown) is stored with `QSettings` in `~/.config/chrono-calc/` *(planned)*.
+What the Windows 7 Calculator remembers (the last view, Digit grouping, the side panel shown) is stored with `QSettings` in `~/.config/chrono-calc/chrono-calc.conf`; so far the window's position (D-018).

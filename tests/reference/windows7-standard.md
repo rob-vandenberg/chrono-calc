@@ -63,3 +63,55 @@ Escape before each line; [x] is a button click. Display and expression line exac
 | 18 | 5 [MS] [Escape] [MR] | 5 | (empty) | yes, also right after MS |
 | 19 | 5 [M+] 3 [M+] [MR] (memory held 5 from line 18) | 13 | (empty) | yes |
 | 20 | 12+3 [CE] 4= | 16 | (empty) | yes |
+
+## D. Keys (measured 2026-10-30, task 1.5)
+
+Characters posted as WM_CHAR, other keys as WM_KEYDOWN/WM_KEYUP, Ctrl with Ctrl held. Escape before each line.
+
+| # | Keys | Display | Expression line | M |
+|---|---|---|---|---|
+| 21 | 12+3 Delete (then 4= gives 16) | 0 | `12 +` | no |
+| 22 | 12+3 Escape | 0 | (empty) | no |
+| 23 | 5 F9 | -5 | (empty) | no |
+| 24 | 2*3 Enter | 6 | (empty) | no |
+| 25 | 5 Ctrl+M Escape Ctrl+R | 5 | (empty) | yes |
+| 26 | then 3 Ctrl+P Ctrl+R | 8 | (empty) | yes |
+| 27 | then 1 Ctrl+Q Ctrl+R | 7 | (empty) | yes |
+| 28 | then Ctrl+L Ctrl+R | 0 | (empty) | no |
+
+Backspace removes the last digit (123 gives 12); `@` is the square root; both `,` and `.` are the decimal point. The
+reciprocal is the R key (the character r alone does nothing); on a real keyboard typing r presses the R key.
+
+## E. Memory at 0
+
+| # | Keys | Display | M |
+|---|---|---|---|
+| 29 | MC Escape MR | 0 | no |
+| 30 | 0 MS | 0 | no |
+| 31 | 5 MS 0 MS | 0 | no |
+| 32 | MC 5 M+ 5 M- MR | 0 | no |
+
+## F. Percent after equals, choosing the view again
+
+| # | Keys | Display | Expression line |
+|---|---|---|---|
+| 33 | 2*3=5% | 0,3 | `0,3` |
+| 34 | 2+3=5% | 0,25 | `0,25` |
+| 35 | 2+3 Alt+1 (View > Standard) | 3 | `2 +` |
+| 36 | 2+3 Ctrl+F4 (View > Basic) | 3 | `2 +` |
+
+## G. Look (PrintWindow, client pixels, 100% scaling)
+
+1. Client background: a vertical gradient, #ECF4FC at the top, #DCE7F3 at y 79, #D9E4F1 from y 165 down.
+2. Display: border #8E9CAD with a white line just inside; the face runs from #E5EEFB (top) over #F0F5FC to #FFFFFF
+   (bottom). Expression line, number and M are #333333.
+3. Button: border #8797AA, corner radius about 3 px; face #F7FBFF at the top, #E7EEF6 in the middle, #F2FBFF at the
+   bottom; a light inner line; label #1E395B. Under the mouse it fades to a warm tone (mid-fade sample: face #F6F2E8,
+   #EAE4D6, #F2F9F4, border #939890).
+4. Menu bar: white.
+5. Fonts: the number Consolas 30 px (digit ink 19 px), the expression line Consolas 15 px (ink 10 px), the M Consolas
+   18 px (ink 11 px), the button labels Segoe UI 20 px (ink of a digit 14 px).
+6. Access keys: View (V): S(t)andard, (S)cientific, (P)rogrammer, St(a)tistics, Histor(y), D(i)git grouping, (B)asic,
+   (U)nit conversion, (D)ate calculation, (W)orksheets > (M)ortgage, (V)ehicle lease, (F)uel economy (mpg),
+   F(u)el economy (L/100 km). Edit (E): (C)opy, (P)aste, (H)istory > Copy h(i)story, (E)dit, Ca(n)cel edit, C(l)ear.
+   Help (H): (V)iew Help, (A)bout Calculator.

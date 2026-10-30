@@ -1,7 +1,8 @@
 # --- Version ------------------------------------------------------------
-# tests/CMakeLists.txt 0.1.5
+# tests/CMakeLists.txt 0.1.6
 
 # --- Version history ----------------------------------------------------
+# v0.1.6: test_standardview (the buttons and menus of the Standard view)
 # v0.1.5: test_reference_standard (the Windows 7 results)
 # v0.0.4: test_calculator (the engine wrapper, commands and keys); chrono-calc-cli checked on exit code, output and error
 # v0.0.3: Microsoft's engine tests in engine/; the layer check also reads third_party/
@@ -24,6 +25,7 @@ chrono_calc_test(test_mainwindow chrono_calc_ui)
 
 chrono_calc_test(test_calculator chrono_calc_core)
 chrono_calc_test(test_reference_standard chrono_calc_core)
+chrono_calc_test(test_standardview chrono_calc_core)
 
 # The command-line driver, checked on exit code, output and error text (cli_check.cmake)
 function(chrono_calc_cli_test name exit_code output)

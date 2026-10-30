@@ -9,9 +9,10 @@
 #include <vector>
 
 // --- Version ------------------------------------------------------------
-// src/core/commands.cpp 0.1.5
+// src/core/commands.cpp 0.1.6
 
 // --- Version history ----------------------------------------------------
+// v0.1.6: view.basic (View > Basic: no side panel)
 // v0.1.5: The memory commands are the engine's own (its one memory register, as in Windows 7)
 // v0.0.4: Initial: the command registry with the commands of the Standard view (D-015)
 
@@ -67,6 +68,7 @@ constexpr std::array registry = {
     engine("memory.add", Command::CommandMPLUS),
     engine("memory.subtract", Command::CommandMMINUS),
     own("view.standard", CommandKind::ViewStandard),
+    own("view.basic", CommandKind::ViewBasic),
 };
 
 }  // namespace

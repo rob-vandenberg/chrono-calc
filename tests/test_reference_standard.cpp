@@ -10,12 +10,13 @@
 #include <vector>
 
 // --- Version ------------------------------------------------------------
-// tests/test_reference_standard.cpp 0.1.5
+// tests/test_reference_standard.cpp 0.1.6
 
 // --- Version history ----------------------------------------------------
+// v0.1.6: Lines 21 to 36: the keys checked on the Windows computer, the memory at 0, percent after =, Standard again
 // v0.1.5: Initial: the 20 Windows 7 Standard view results of tests/reference/windows7-standard.md (task 1.5)
 
-// Each line of part C of tests/reference/windows7-standard.md, measured in the Windows 7 Calculator: the commands (Escape
+// Each line of parts C to F of tests/reference/windows7-standard.md, measured in the Windows 7 Calculator: the commands (Escape
 // first, as there), and the display, expression line and memory mark Windows 7 showed. That computer used a comma as
 // the decimal separator, so these calculators do too.
 namespace {
@@ -60,6 +61,30 @@ std::vector<Line> lines()
         {"19: 5 M+ 3 M+ MR (memory held 5)", {"digit.5", "memory.store", "clear", "digit.5", "memory.add", "digit.3", "memory.add", "memory.recall"}, "13", "", true},
         // Line 20 showed M only because memory still held 13 from line 19; each line here starts with an empty memory
         {"20: 12+3 CE 4=", {"digit.1", "digit.2", "add", "digit.3", "clear_entry", "digit.4", "equals"}, "16", "", false},
+        // Part D: the keys (core/keys gives these commands; the window's own key test sends the real keys)
+        {"21: 12+3 Delete", {"digit.1", "digit.2", "add", "digit.3", "clear_entry"}, "0", "12 +", false},
+        {"22: 12+3 Escape", {"digit.1", "digit.2", "add", "digit.3", "clear"}, "0", "", false},
+        {"23: 5 F9", {"digit.5", "negate"}, "-5", "", false},
+        {"24: 2*3 Enter", {"digit.2", "multiply", "digit.3", "equals"}, "6", "", false},
+        {"25: 5 Ctrl+M Esc Ctrl+R", {"digit.5", "memory.store", "clear", "memory.recall"}, "5", "", true},
+        {"26: then 3 Ctrl+P Ctrl+R", {"digit.5", "memory.store", "clear", "memory.recall", "digit.3", "memory.add", "memory.recall"}, "8", "", true},
+        {"27: then 1 Ctrl+Q Ctrl+R",
+         {"digit.5", "memory.store", "clear", "memory.recall", "digit.3", "memory.add", "memory.recall", "digit.1", "memory.subtract", "memory.recall"},
+         "7", "", true},
+        {"28: then Ctrl+L Ctrl+R",
+         {"digit.5", "memory.store", "clear", "memory.recall", "digit.3", "memory.add", "memory.recall", "digit.1", "memory.subtract", "memory.recall",
+          "memory.clear", "memory.recall"},
+         "0", "", false},
+        // Part E: the memory at 0 shows no M
+        {"29: MC Esc MR", {"memory.clear", "clear", "memory.recall"}, "0", "", false},
+        {"30: 0 MS", {"digit.0", "memory.store"}, "0", "", false},
+        {"31: 5 MS 0 MS", {"digit.5", "memory.store", "digit.0", "memory.store"}, "0", "", false},
+        {"32: MC 5 M+ 5 M- MR", {"memory.clear", "digit.5", "memory.add", "digit.5", "memory.subtract", "memory.recall"}, "0", "", false},
+        // Part F: percent right after = takes the result; Standard and Basic again change nothing
+        {"33: 2*3=5%", {"digit.2", "multiply", "digit.3", "equals", "digit.5", "percent"}, "0,3", "0,3", false},
+        {"34: 2+3=5%", {"digit.2", "add", "digit.3", "equals", "digit.5", "percent"}, "0,25", "0,25", false},
+        {"35: 2+3 Alt+1", {"digit.2", "add", "digit.3", "view.standard"}, "3", "2 +", false},
+        {"36: 2+3 Ctrl+F4", {"digit.2", "add", "digit.3", "view.basic"}, "3", "2 +", false},
     };
 }
 

@@ -47,3 +47,11 @@ Append-only. One entry per completed task, newest last.
 - The wrapper now drives `CCalcEngine` directly: the engine's one memory register is Windows 7's memory. Windows 7 percent with the engine's own formula and `Rational`; the Windows 7 expression line; regional separators (D-017).
 - Found a fault in Microsoft's engine through the reference test: `m_decimalSeparator` has no start value, so a second engine with a comma separator could read "0,1" as an overflow. Settled in the wrapper after construction, engine unchanged.
 - `tests/test_reference_standard.cpp`: all 20 Windows 7 results pass, with a comma separator as on the Windows computer. 12 test programs pass with GCC.
+
+## 2026-10-30: 0.1.6, M1 window and the Windows 7 checks (tasks 1.1 to 1.5)
+
+- The Standard view's window: the menus of Windows 7 with every item (not-built ones greyed, their shortcut shown but not taken), the display, 28 buttons in our own drawing at Windows 7's measures, every key, fixed size, the position remembered (D-018). Layout, menus, keys and colours live in `core`; the window only maps keys, clicks and menu items to commands.
+- Checked on the Windows 7 Calculator through the first chat's session (Remote Control is off in this chat): the keys, the memory at 0, percent after = and choosing Standard/Basic again (reference lines 21 to 36), plus colours, fonts and access keys (part G).
+- Found and fixed through that check: Alt+1 (View > Standard) cleared the calculator, Windows 7 keeps it; a percent right after = took y/100, Windows 7 takes y * result / 100 (2*3=5% is 0,3) (D-019).
+- Four review rounds. Fixed from them: a saved position touching a screen by one pixel was used; a key's flash could lose a mouse click (the flash is now drawing only); the palette started from the desktop theme's; the tooltips' palette; tests sent keys past the real focus path; the gradient stops; fonts recomputed on every paint and unbounded for bitmap fonts; tests for the new percent path.
+- Tests: 13 programs; the related 8 (test_calculator, test_reference_standard 39 rows, test_standardview, test_mainwindow 19, test_layers, 3 CLI checks) pass with GCC 15, Clang 21 and on Debian 12 (Qt 6.4). New tests were shown to fail without their fix.

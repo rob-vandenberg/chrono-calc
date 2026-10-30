@@ -21,9 +21,11 @@
 #include <vector>
 
 // --- Version ------------------------------------------------------------
-// src/core/calculator.cpp 0.1.5
+// src/core/calculator.cpp 0.1.6
 
 // --- Version history ----------------------------------------------------
+// v0.1.6: view.standard and view.basic change nothing while the calculator is already in Standard and Basic, as in
+//         Windows 7; percent right after = takes the result: 2*3=5% is 6 * 5/100 = 0.3 (Windows 7)
 // v0.1.5: Drives the engine directly (its one memory register is Windows 7's memory); Windows 7's expression line and
 //         percent; the separators of the regional settings (D-017)
 // v0.0.4: Initial: the engine wrapper; runs commands and keeps what the engine shows (D-015)
@@ -167,8 +169,9 @@ bool Calculator::run(std::string_view commandId)
     if (!target) {
         return false;
     }
-    if (target->kind == CommandKind::ViewStandard) {
-        setStandardView();
+    // The calculator is in the Standard view from the start (the constructor); Windows 7 keeps the number, the
+    // expression line and the memory when Standard or Basic is chosen again. Basic only hides a side panel.
+    if (target->kind == CommandKind::ViewStandard || target->kind == CommandKind::ViewBasic) {
         return true;
     }
     const auto opCode = static_cast<std::uintptr_t>(target->engineCommand);
@@ -190,6 +193,7 @@ bool Calculator::run(std::string_view commandId)
         m_lastWasOperator = false;
         m_percentText.clear();
         m_afterEquals = false;
+        m_result.reset();
         return true;
     }
     switch (opCode) {
@@ -203,6 +207,10 @@ bool Calculator::run(std::string_view commandId)
         m_lastWasOperator = false;
         m_percentText.clear();
         m_afterEquals = true;
+        // A percent right after = takes this result as its base (Windows 7)
+        if (!isError()) {
+            m_result = currentValue();
+        }
         break;
     case IDC_BACK:  // backspace only changes a number being typed; on a result or after an operator it changes nothing
     case IDC_STORE:  // the memory changes nothing on the display
@@ -259,6 +267,7 @@ void Calculator::setStandardView()
     m_lastWasOperator = false;
     m_percentText.clear();
     m_afterEquals = false;
+    m_result.reset();
 }
 
 void Calculator::runEngine(std::uintptr_t opCode)
@@ -287,6 +296,7 @@ void Calculator::binaryOperator(std::uintptr_t opCode)
     m_lastWasOperator = true;
     m_afterEquals = false;
     m_percentText.clear();
+    m_result.reset();
     // The left value of multiply and divide, for a Windows 7 percent: the engine shows it as its current value now
     if ((opCode == IDC_MUL || opCode == IDC_DIV) && !isError()) {
         m_leftValue = currentValue();
@@ -297,10 +307,12 @@ void Calculator::binaryOperator(std::uintptr_t opCode)
 
 // Windows 7 takes y% as y * x / 100 after every operator. The engine does so after + and -, but after multiply and
 // divide it takes y / 100 (Windows 10's rule), so there the engine's own formula is applied to the engine's values.
+// Right after = (no operator since), x is the result: 2*3=5% is 6 * 5/100 = 0.3, and the expression line shows 0.3.
 void Calculator::percent()
 {
-    const std::optional<CalcEngine::Rational> left = m_leftValue;
-    if (isError() || !left.has_value() || (m_pendingOperator != IDC_MUL && m_pendingOperator != IDC_DIV)) {
+    const bool afterResult = m_pendingOperator == 0 && m_result.has_value();
+    const std::optional<CalcEngine::Rational> left = afterResult ? m_result : m_leftValue;
+    if (isError() || !left.has_value() || (!afterResult && m_pendingOperator != IDC_MUL && m_pendingOperator != IDC_DIV)) {
         runEngine(IDC_PERCENT);
         m_lastWasOperator = false;
         m_percentText.clear();

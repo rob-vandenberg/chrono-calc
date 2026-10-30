@@ -8,9 +8,10 @@
 #include <vector>
 
 // --- Version ------------------------------------------------------------
-// src/core/commands.h 0.1.5
+// src/core/commands.h 0.1.6
 
 // --- Version history ----------------------------------------------------
+// v0.1.6: view.basic (View > Basic: no side panel)
 // v0.1.5: The memory commands are the engine's own (its one memory register, as in Windows 7)
 // v0.0.4: Initial: the command registry with the commands of the Standard view (D-015)
 
@@ -21,6 +22,7 @@ enum class CommandKind : std::uint8_t
 {
     Engine,
     ViewStandard,
+    ViewBasic,
 };
 
 struct CommandTarget

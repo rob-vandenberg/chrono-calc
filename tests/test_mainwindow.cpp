@@ -1,25 +1,365 @@
+#include <QAction>
+#include <QCoreApplication>
+#include <QGuiApplication>
+#include <QKeySequence>
+#include <QList>
+#include <QMenu>
+#include <QMenuBar>
 #include <QObject>
+#include <QPoint>
+#include <QRect>
+#include <QScreen>
+#include <QSettings>
+#include <QSize>
+#include <QString>
+#include <QStringList>
+#include <QTemporaryDir>
 #include <QTest>
 
+#include "core/enginetexts.h"
+#include "ui/calcbutton.h"
+#include "ui/displaypanel.h"
 #include "ui/mainwindow.h"
 
+#include <algorithm>
+#include <memory>
+
 // --- Version ------------------------------------------------------------
-// tests/test_mainwindow.cpp 0.0.2
+// tests/test_mainwindow.cpp 0.1.6
 
 // --- Version history ----------------------------------------------------
+// v0.1.6: The Standard view (keys typed into the view area, as the real keyboard focus does): the measures, the buttons, the keys, the menus, the fixed size and the remembered position
 // v0.0.2: Initial: the window opens with the title Chrono Calc
+
+namespace {
+
+// A comma as the decimal point, as on the owner's Windows computer that gave the reference results
+constexpr chrono_calc::Separators commaSeparators{.decimal = L',', .thousands = L'.'};
+
+const chrono_calc::DisplayPanel* displayOf(const chrono_calc::MainWindow& window)
+{
+    return window.findChild<chrono_calc::DisplayPanel*>(QStringLiteral("display"));
+}
+
+chrono_calc::CalcButton* buttonOf(const chrono_calc::MainWindow& window, const QString& commandId)
+{
+    return window.findChild<chrono_calc::CalcButton*>(QStringLiteral("button.") + commandId);
+}
+
+// The menu item with this text (the shortcut a greyed item shows after a tab is left out)
+QAction* actionOf(const QMenu* menu, const QString& text)
+{
+    const QList<QAction*> actions = menu->actions();
+    const auto found = std::ranges::find_if(actions, [&text](const QAction* action) {
+        return action->text().section(QLatin1Char('\t'), 0, 0) == text;
+    });
+    return found == actions.end() ? nullptr : *found;
+}
+
+const QMenu* menuOf(const chrono_calc::MainWindow& window, const QString& title)
+{
+    for (const QAction* menuAction : window.menuBar()->actions()) {
+        if (menuAction->text() == title) {
+            return menuAction->menu();
+        }
+    }
+    return nullptr;
+}
+
+// The settings go to a folder of their own that is removed afterwards: the test leaves nothing behind
+std::unique_ptr<QTemporaryDir>& settingsFolder()
+{
+    static std::unique_ptr<QTemporaryDir> folder;
+    return folder;
+}
+
+std::unique_ptr<chrono_calc::MainWindow> openWindow()
+{
+    auto window = std::make_unique<chrono_calc::MainWindow>(commaSeparators, nullptr);
+    window->show();
+    if (!QTest::qWaitForWindowExposed(window.get())) {
+        return nullptr;
+    }
+    return window;
+}
+
+}  // namespace
 
 class TestMainWindow : public QObject
 {
     Q_OBJECT
 
 private slots:
+    static void initTestCase()
+    {
+        settingsFolder() = std::make_unique<QTemporaryDir>();
+        QVERIFY(settingsFolder()->isValid());
+        QCoreApplication::setOrganizationName(QStringLiteral("chrono-calc-test"));
+        QCoreApplication::setApplicationName(QStringLiteral("test_mainwindow"));
+        QSettings::setPath(QSettings::NativeFormat, QSettings::UserScope, settingsFolder()->path());
+    }
+
+    static void init()
+    {
+        QSettings().clear();
+    }
+
+    static void cleanupTestCase()
+    {
+        settingsFolder().reset();
+    }
+
     static void theWindowOpensWithTheTitleChronoCalc()
     {
-        chrono_calc::MainWindow window;
-        window.show();
-        QVERIFY(QTest::qWaitForWindowExposed(&window));
-        QCOMPARE(window.windowTitle(), QStringLiteral("Chrono Calc"));
+        const auto window = openWindow();
+        QVERIFY(window);
+        QCOMPARE(window->windowTitle(), QStringLiteral("Chrono Calc"));
+    }
+
+    // The client area below the menus is Windows 7's 264 x 331, and the window cannot be resized
+    static void theWindowHasTheFixedSizeOfTheStandardView()
+    {
+        const auto window = openWindow();
+        QVERIFY(window);
+        QCOMPARE(window->centralWidget()->size(), QSize(264, 331));
+        QCOMPARE(window->minimumSize(), window->maximumSize());
+    }
+
+    // Every measure of tests/reference/windows7-standard.md part A
+    static void theDisplayAndTheButtonsSitWhereWindows7HasThem()
+    {
+        const auto window = openWindow();
+        QVERIFY(window);
+        QCOMPARE(displayOf(*window)->geometry(), QRect(13, 13, 238, 63));
+        QCOMPARE(window->findChildren<chrono_calc::CalcButton*>().size(), 28);
+        QCOMPARE(buttonOf(*window, QStringLiteral("memory.clear"))->geometry(), QRect(13, 82, 43, 33));
+        QCOMPARE(buttonOf(*window, QStringLiteral("sqrt"))->geometry(), QRect(208, 122, 43, 33));
+        QCOMPARE(buttonOf(*window, QStringLiteral("percent"))->geometry(), QRect(208, 162, 43, 33));
+        QCOMPARE(buttonOf(*window, QStringLiteral("digit.6"))->geometry(), QRect(111, 203, 43, 33));
+        QCOMPARE(buttonOf(*window, QStringLiteral("equals"))->geometry(), QRect(208, 242, 43, 74));
+        QCOMPARE(buttonOf(*window, QStringLiteral("digit.0"))->geometry(), QRect(13, 282, 92, 33));
+        QCOMPARE(buttonOf(*window, QStringLiteral("decimal"))->geometry(), QRect(111, 282, 43, 33));
+        QCOMPARE(buttonOf(*window, QStringLiteral("add"))->geometry(), QRect(160, 282, 43, 33));
+    }
+
+    // The decimal-point button shows the regional separator
+    static void theDecimalButtonShowsTheRegionalSeparator()
+    {
+        const auto window = openWindow();
+        QVERIFY(window);
+        QCOMPARE(buttonOf(*window, QStringLiteral("decimal"))->text(), QStringLiteral(","));
+        const chrono_calc::MainWindow pointWindow(chrono_calc::Separators{.decimal = L'.', .thousands = L','}, nullptr);
+        QCOMPARE(buttonOf(pointWindow, QStringLiteral("decimal"))->text(), QStringLiteral("."));
+    }
+
+    // Clicks run the commands and the display shows the calculator: result 1 of the reference
+    static void clickingTheButtonsCalculates()
+    {
+        const auto window = openWindow();
+        QVERIFY(window);
+        for (const QString& command : {QStringLiteral("digit.2"), QStringLiteral("add"), QStringLiteral("digit.3"), QStringLiteral("multiply")}) {
+            QTest::mouseClick(buttonOf(*window, command), Qt::LeftButton);
+        }
+        QCOMPARE(displayOf(*window)->number(), QStringLiteral("5"));
+        QCOMPARE(displayOf(*window)->expression(), QStringLiteral("2 + 3 *"));
+    }
+
+    // Typed characters, as in Windows 7: 0,1+0.2= gives 0,3 (both , and . are the decimal point)
+    static void typingCalculates()
+    {
+        const auto window = openWindow();
+        QVERIFY(window);
+        QTest::keyClicks(window->centralWidget(), QStringLiteral("0,1+0.2="));
+        QCOMPARE(displayOf(*window)->number(), QStringLiteral("0,3"));
+        QTest::keyClicks(window->centralWidget(), QStringLiteral("9@"));
+        QCOMPARE(displayOf(*window)->number(), QStringLiteral("3"));
+        QTest::keyClicks(window->centralWidget(), QStringLiteral("5r"));
+        QCOMPARE(displayOf(*window)->number(), QStringLiteral("0,2"));
+        QTest::keyClicks(window->centralWidget(), QStringLiteral("2+3%"));
+        QCOMPARE(displayOf(*window)->number(), QStringLiteral("0,06"));
+    }
+
+    // The keys without a character: Escape = C, Delete = CE, Backspace, Enter = equals, F9 = plus/minus
+    static void theKeysWithoutACharacterRunTheirCommands()
+    {
+        const auto window = openWindow();
+        QVERIFY(window);
+        QTest::keyClicks(window->centralWidget(), QStringLiteral("123"));
+        QTest::keyClick(window->centralWidget(), Qt::Key_Backspace);
+        QCOMPARE(displayOf(*window)->number(), QStringLiteral("12"));
+        QTest::keyClicks(window->centralWidget(), QStringLiteral("+3"));
+        QTest::keyClick(window->centralWidget(), Qt::Key_Delete);
+        QCOMPARE(displayOf(*window)->number(), QStringLiteral("0"));
+        QTest::keyClicks(window->centralWidget(), QStringLiteral("4"));
+        QTest::keyClick(window->centralWidget(), Qt::Key_Return);
+        QCOMPARE(displayOf(*window)->number(), QStringLiteral("16"));
+        QTest::keyClick(window->centralWidget(), Qt::Key_F9);
+        QCOMPARE(displayOf(*window)->number(), QStringLiteral("-16"));
+        QTest::keyClicks(window->centralWidget(), QStringLiteral("2*3"));
+        QTest::keyClick(window->centralWidget(), Qt::Key_Enter, Qt::KeypadModifier);
+        QCOMPARE(displayOf(*window)->number(), QStringLiteral("6"));
+        QTest::keyClicks(window->centralWidget(), QStringLiteral("7+"));
+        QTest::keyClick(window->centralWidget(), Qt::Key_Escape);
+        QCOMPARE(displayOf(*window)->number(), QStringLiteral("0"));
+        QCOMPARE(displayOf(*window)->expression(), QString());
+    }
+
+    // The memory keys Ctrl+M (MS), Ctrl+R (MR), Ctrl+P (M+), Ctrl+Q (M-), Ctrl+L (MC), and the mark M
+    static void theCtrlKeysRunTheMemory()
+    {
+        const auto window = openWindow();
+        QVERIFY(window);
+        QTest::keyClicks(window->centralWidget(), QStringLiteral("5"));
+        QTest::keyClick(window->centralWidget(), Qt::Key_M, Qt::ControlModifier);
+        QVERIFY(displayOf(*window)->memoryMarkShown());
+        QTest::keyClick(window->centralWidget(), Qt::Key_Escape);
+        QTest::keyClicks(window->centralWidget(), QStringLiteral("3"));
+        QTest::keyClick(window->centralWidget(), Qt::Key_P, Qt::ControlModifier);
+        QTest::keyClicks(window->centralWidget(), QStringLiteral("1"));
+        QTest::keyClick(window->centralWidget(), Qt::Key_Q, Qt::ControlModifier);
+        QTest::keyClick(window->centralWidget(), Qt::Key_R, Qt::ControlModifier);
+        QCOMPARE(displayOf(*window)->number(), QStringLiteral("7"));
+        QTest::keyClick(window->centralWidget(), Qt::Key_L, Qt::ControlModifier);
+        QVERIFY(!displayOf(*window)->memoryMarkShown());
+    }
+
+    // A typed key shows its button pressed for a moment
+    static void aTypedKeyShowsItsButtonPressed()
+    {
+        const auto window = openWindow();
+        QVERIFY(window);
+        QTest::keyClicks(window->centralWidget(), QStringLiteral("7"));
+        QVERIFY(buttonOf(*window, QStringLiteral("digit.7"))->looksPressed());
+        QTRY_VERIFY(!buttonOf(*window, QStringLiteral("digit.7"))->looksPressed());
+    }
+
+    // A long number is drawn smaller, so that every digit stays in view
+    static void aLongNumberIsDrawnSmaller()
+    {
+        const auto window = openWindow();
+        QVERIFY(window);
+        const int normal = displayOf(*window)->numberPixelSize();
+        QTest::keyClicks(window->centralWidget(), QStringLiteral("9999999999999999*9999999999999999="));
+        QCOMPARE(displayOf(*window)->number(), QStringLiteral("9,999999999999998e+31"));
+        QVERIFY(displayOf(*window)->numberPixelSize() < normal);
+        QTest::keyClicks(window->centralWidget(), QStringLiteral("1/0="));
+        QCOMPARE(displayOf(*window)->number(), QStringLiteral("Cannot divide by zero"));
+    }
+
+    // The menus of Windows 7, every item present; what is not built yet is greyed, never hidden
+    static void theMenusHaveEveryItemAndGreyWhatIsNotBuilt()
+    {
+        const auto window = openWindow();
+        QVERIFY(window);
+        QStringList titles;
+        for (const QAction* action : window->menuBar()->actions()) {
+            titles << action->text();
+        }
+        QCOMPARE(titles, QStringList({QStringLiteral("&View"), QStringLiteral("&Edit"), QStringLiteral("&Help")}));
+
+        const QMenu* view = menuOf(*window, QStringLiteral("&View"));
+        QVERIFY(view != nullptr);
+        const QAction* standard = actionOf(view, QStringLiteral("S&tandard"));
+        QVERIFY(standard != nullptr && standard->isEnabled() && standard->isChecked());
+        QCOMPARE(standard->shortcut(), QKeySequence(QStringLiteral("Alt+1")));
+        const QAction* basic = actionOf(view, QStringLiteral("&Basic"));
+        QVERIFY(basic != nullptr && basic->isEnabled() && basic->isChecked());
+        for (const QString& greyed : {QStringLiteral("&Scientific"), QStringLiteral("&Programmer"), QStringLiteral("St&atistics"),
+                                      QStringLiteral("Histor&y"), QStringLiteral("D&igit grouping"), QStringLiteral("&Unit conversion"),
+                                      QStringLiteral("&Date calculation")}) {
+            const QAction* action = actionOf(view, greyed);
+            QVERIFY2(action != nullptr && !action->isEnabled(), qPrintable(greyed));
+        }
+        const QAction* scientific = actionOf(view, QStringLiteral("&Scientific"));
+        QCOMPARE(scientific->text(), QStringLiteral("&Scientific\tAlt+2"));
+        const QAction* worksheets = actionOf(view, QStringLiteral("&Worksheets"));
+        QVERIFY(worksheets != nullptr && worksheets->menu() != nullptr);
+        QCOMPARE(worksheets->menu()->actions().size(), 4);
+
+        const QMenu* edit = menuOf(*window, QStringLiteral("&Edit"));
+        QVERIFY(edit != nullptr);
+        QVERIFY(!actionOf(edit, QStringLiteral("&Copy"))->isEnabled());
+        QVERIFY(!actionOf(edit, QStringLiteral("&Paste"))->isEnabled());
+        QCOMPARE(actionOf(edit, QStringLiteral("&History"))->menu()->actions().size(), 4);
+
+        const QMenu* help = menuOf(*window, QStringLiteral("&Help"));
+        QVERIFY(help != nullptr);
+        QVERIFY(!actionOf(help, QStringLiteral("&View Help"))->isEnabled());
+        QVERIFY(!actionOf(help, QStringLiteral("&About Chrono Calc"))->isEnabled());
+    }
+
+    // View > Basic changes nothing on the display
+    static void basicKeepsTheNumber()
+    {
+        const auto window = openWindow();
+        QVERIFY(window);
+        QTest::keyClicks(window->centralWidget(), QStringLiteral("2+3"));
+        actionOf(menuOf(*window, QStringLiteral("&View")), QStringLiteral("&Basic"))->trigger();
+        QCOMPARE(displayOf(*window)->number(), QStringLiteral("3"));
+        QCOMPARE(displayOf(*window)->expression(), QStringLiteral("2 +"));
+    }
+
+    // The window opens where it was closed
+    static void theWindowOpensWhereItWasClosed()
+    {
+        {
+            const auto window = openWindow();
+            QVERIFY(window);
+            window->move(QPoint(140, 90));
+            QTRY_COMPARE(window->pos(), QPoint(140, 90));
+            window->close();
+        }
+        const auto window = openWindow();
+        QVERIFY(window);
+        QCOMPARE(window->pos(), QPoint(140, 90));
+    }
+
+    // A position on no screen any more (a screen that was removed) is not used
+    static void aPositionOnNoScreenIsNotUsed()
+    {
+        QSettings().setValue(QStringLiteral("window/position"), QPoint(-30000, -30000));
+        const auto window = openWindow();
+        QVERIFY(window);
+        QVERIFY(window->pos() != QPoint(-30000, -30000));
+    }
+
+    // A position where only a strip of the window would show (its screen was beside this one) is not used
+    static void aPositionMostlyOffTheScreenIsNotUsed()
+    {
+        const QRect screen = QGuiApplication::primaryScreen()->availableGeometry();
+        const QPoint edge(screen.right() - 5, screen.top() + 50);
+        QSettings().setValue(QStringLiteral("window/position"), edge);
+        const auto window = openWindow();
+        QVERIFY(window);
+        QVERIFY(window->pos() != edge);
+    }
+
+    // A key typed while the mouse holds a button down leaves the button down, so the click still comes
+    static void aTypedKeyKeepsAButtonTheMouseHolds()
+    {
+        const auto window = openWindow();
+        QVERIFY(window);
+        chrono_calc::CalcButton* seven = buttonOf(*window, QStringLiteral("digit.7"));
+        QTest::mousePress(seven, Qt::LeftButton);
+        QTest::keyClicks(window->centralWidget(), QStringLiteral("7"));
+        QTest::qWait(200);
+        QVERIFY(seven->isDown());
+        QTest::mouseRelease(seven, Qt::LeftButton);
+        QCOMPARE(displayOf(*window)->number(), QStringLiteral("77"));
+    }
+
+    // The other order: the mouse presses a button while it still flashes from its key; the click still comes
+    static void aMouseClickDuringAFlashStillCounts()
+    {
+        const auto window = openWindow();
+        QVERIFY(window);
+        chrono_calc::CalcButton* seven = buttonOf(*window, QStringLiteral("digit.7"));
+        QTest::keyClicks(window->centralWidget(), QStringLiteral("7"));
+        QTest::mousePress(seven, Qt::LeftButton);
+        QTest::qWait(200);
+        QVERIFY(seven->isDown());
+        QTest::mouseRelease(seven, Qt::LeftButton);
+        QCOMPARE(displayOf(*window)->number(), QStringLiteral("77"));
     }
 };
 

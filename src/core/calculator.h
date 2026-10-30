@@ -13,9 +13,10 @@
 #include <string_view>
 
 // --- Version ------------------------------------------------------------
-// src/core/calculator.h 0.1.5
+// src/core/calculator.h 0.1.6
 
 // --- Version history ----------------------------------------------------
+// v0.1.6: The last result, for a percent right after = (Windows 7)
 // v0.1.5: Drives the engine directly (its one memory register is Windows 7's memory); Windows 7's expression line and
 //         percent; the separators of the regional settings (D-017)
 // v0.0.4: Initial: the engine wrapper; runs commands and keeps what the engine shows (D-015)
@@ -74,6 +75,8 @@ private:
     std::wstring m_percentText;
     // After = the engine's own last part ("4=") is not shown: Windows 7 empties the line
     bool m_afterEquals = false;
+    // The result of the last =, while no operator came after it: a percent then takes it as its base
+    std::optional<CalcEngine::Rational> m_result;
 };
 
 }  // namespace chrono_calc
