@@ -20,9 +20,10 @@
 #include <algorithm>
 
 // --- Version ------------------------------------------------------------
-// src/ui/displaypanel.cpp 0.2.7
+// src/ui/displaypanel.cpp 0.4.11
 
 // --- Version history ----------------------------------------------------
+// v0.4.11: The Statistics view: no expression line; the count of the list and the thin line above it
 // v0.2.7: The measures of the current view (Standard or Scientific)
 // v0.1.6: Initial: the display of the Standard view, close to the Windows 7 Calculator (D-005, D-018)
 
@@ -36,6 +37,8 @@ constexpr double numberInkHeight = 19.0;
 constexpr double expressionInkHeight = 10.0;
 constexpr double memoryMarkInkHeight = 11.0;
 constexpr int numberPixelSizeSmallest = 8;
+// "Count = " is in the small text font (Segoe UI 12 px in Windows 7)
+constexpr double countInkHeight = 8.5;
 
 // A part of the display, from the window's measures to the panel's own coordinates
 QRect inPanel(const ViewLayout& layout, Rectangle part)
@@ -59,6 +62,7 @@ DisplayPanel::DisplayPanel(QWidget* parent)
     , m_numberFont(fontWithInkHeight(fixedWidthFont(), numberInkHeight))
     , m_expressionFont(fontWithInkHeight(fixedWidthFont(), expressionInkHeight))
     , m_memoryMarkFont(fontWithInkHeight(fixedWidthFont(), memoryMarkInkHeight))
+    , m_countFont(fontWithInkHeight(font(), countInkHeight))
 {
     setFocusPolicy(Qt::NoFocus);
 }
@@ -94,6 +98,19 @@ QString DisplayPanel::expression() const
 bool DisplayPanel::memoryMarkShown() const
 {
     return m_memoryHolds;
+}
+
+void DisplayPanel::showCount(int count)
+{
+    if (count != m_count) {
+        m_count = count;
+        update();
+    }
+}
+
+QString DisplayPanel::countText() const
+{
+    return m_layout->statistics.list.width > 0 ? tr("Count = %1").arg(m_count) : QString();
 }
 
 int DisplayPanel::numberPixelSize() const
@@ -139,10 +156,22 @@ void DisplayPanel::paintEvent(QPaintEvent* /*event*/)
 
     // The expression line: when it is longer than the line, its end stays in view (the newest part)
     const QRect expressionRect = inPanel(*m_layout, m_layout->expressionLine);
-    painter.setFont(m_expressionFont);
-    painter.setPen(qtColour(colours::displayExpression));
-    painter.drawText(expressionRect, Qt::AlignRight | Qt::AlignVCenter,
-                     QFontMetrics(m_expressionFont).elidedText(m_expression, Qt::ElideLeft, expressionRect.width()));
+    if (expressionRect.width() > 0) {
+        painter.setFont(m_expressionFont);
+        painter.setPen(qtColour(colours::displayExpression));
+        painter.drawText(expressionRect, Qt::AlignRight | Qt::AlignVCenter,
+                         QFontMetrics(m_expressionFont).elidedText(m_expression, Qt::ElideLeft, expressionRect.width()));
+    }
+
+    // The Statistics view: a thin line under the list, then "Count = " and the count
+    const StatisticsSpec& statistics = m_layout->statistics;
+    if (statistics.list.width > 0) {
+        painter.fillRect(inPanel(*m_layout, statistics.divider), qtColour(colours::listDivider));
+        painter.setFont(m_countFont);
+        painter.setPen(qtColour(colours::countText));
+        painter.drawText(inPanel(*m_layout, statistics.countLabel), Qt::AlignLeft | Qt::AlignVCenter, tr("Count = "));
+        painter.drawText(inPanel(*m_layout, statistics.countValue), Qt::AlignLeft | Qt::AlignVCenter, QString::number(m_count));
+    }
 
     if (m_memoryHolds) {
         painter.setFont(m_memoryMarkFont);

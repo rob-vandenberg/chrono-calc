@@ -7,9 +7,10 @@
 #include <string_view>
 
 // --- Version ------------------------------------------------------------
-// src/core/layout.cpp 0.3.8
+// src/core/layout.cpp 0.4.11
 
 // --- Version history ----------------------------------------------------
+// v0.4.11: The Statistics view: its buttons and the list inside the display (D-023)
 // v0.3.8: The Programmer view: its buttons, the bases and word sizes, the bit display; choices of any kind
 // v0.2.7: Every view's layout (Standard and Scientific); each button's face and its label under Inv (D-020)
 // v0.1.6: Initial: the Standard view's measures and buttons, as the Windows 7 Calculator (D-018)
@@ -26,6 +27,8 @@ constexpr double digitInk = 14.0;
 constexpr double textInk = 9.0;
 constexpr double symbolInk = 21.0;
 constexpr double reciprocalInk = 10.5;
+// The statistic buttons of the Statistics view: Segoe UI Symbol 17 px
+constexpr double statisticInk = 12.0;
 constexpr int buttonWidth = 43;
 constexpr int buttonHeight = 33;
 constexpr std::array<int, 6> rows = {82, 122, 162, 203, 242, 282};
@@ -238,6 +241,47 @@ constexpr int bitHeight = 15;
 constexpr int bitsPerRow = 32;
 constexpr int bitsPerGroup = 4;
 
+// The Statistics view (windows7-statistics.md part A): as narrow as Standard; the display holds the list
+constexpr std::array<int, 6> statisticsRows = {207, 247, 287, 328, 367, 407};
+
+constexpr ButtonSpec stat(std::string_view commandId, std::string_view label, ButtonFace face, int left, std::size_t row)
+{
+    return placed(commandId, label, face, left, statisticsRows.at(row));
+}
+
+constexpr std::array<ButtonSpec, 29> statisticsButtons = {
+    stat("memory.clear", "MC", ButtonFace::Memory, 13, 0),
+    stat("memory.recall", "MR", ButtonFace::Memory, 62, 0),
+    stat("memory.store", "MS", ButtonFace::Memory, 111, 0),
+    stat("memory.add", "M+", ButtonFace::Memory, 160, 0),
+    stat("memory.subtract", "M-", ButtonFace::Memory, 208, 0),
+    inkHeight(stat("backspace", "\u2190", ButtonFace::Function, 13, 1), symbolInk),
+    stat("statistics.clear_all", "CAD", ButtonFace::Function, 62, 1),
+    stat("clear", "C", ButtonFace::Function, 111, 1),
+    stat("scientific_notation", "F-E", ButtonFace::Toggle, 160, 1),
+    stat("exponent", "Exp", ButtonFace::Function, 208, 1),
+    stat("digit.7", "7", ButtonFace::Digit, 13, 2),
+    stat("digit.8", "8", ButtonFace::Digit, 62, 2),
+    stat("digit.9", "9", ButtonFace::Digit, 111, 2),
+    inkHeight(stat("statistics.mean", "x̄", ButtonFace::Function, 160, 2), statisticInk),
+    inkHeight(stat("statistics.mean_of_squares", "x̄²", ButtonFace::Function, 208, 2), statisticInk),
+    stat("digit.4", "4", ButtonFace::Digit, 13, 3),
+    stat("digit.5", "5", ButtonFace::Digit, 62, 3),
+    stat("digit.6", "6", ButtonFace::Digit, 111, 3),
+    inkHeight(stat("statistics.sum", "Σx", ButtonFace::Function, 160, 3), statisticInk),
+    inkHeight(stat("statistics.sum_of_squares", "Σx²", ButtonFace::Function, 208, 3), statisticInk),
+    stat("digit.1", "1", ButtonFace::Digit, 13, 4),
+    stat("digit.2", "2", ButtonFace::Digit, 62, 4),
+    stat("digit.3", "3", ButtonFace::Digit, 111, 4),
+    inkHeight(stat("statistics.deviation", "σₙ", ButtonFace::Function, 160, 4), statisticInk),
+    inkHeight(stat("statistics.sample_deviation", "σₙ₋₁", ButtonFace::Function, 208, 4), statisticInk),
+    wide(stat("digit.0", "0", ButtonFace::Digit, 13, 5), 92),
+    // The decimal point has the digit face but a small label (Segoe UI 13 px)
+    inkHeight(stat(decimalCommand, ".", ButtonFace::Digit, 111, 5), textInk),
+    stat("negate", "±", ButtonFace::Function, 160, 5),
+    stat("statistics.add", "Add", ButtonFace::Function, 208, 5),
+};
+
 const ViewLayout standardLayout{
     .clientWidth = 264,
     .clientHeight = 331,
@@ -250,6 +294,7 @@ const ViewLayout standardLayout{
     .choices = {},
     .bracketCounter = {},
     .bitDisplay = {},
+    .statistics = {},
 };
 
 const ViewLayout scientificLayout{
@@ -264,6 +309,7 @@ const ViewLayout scientificLayout{
     .choices = angles,
     .bracketCounter = {.left = 13, .top = 122, .width = 43, .height = 33},
     .bitDisplay = {},
+    .statistics = {},
 };
 
 const ViewLayout programmerLayout{
@@ -278,6 +324,30 @@ const ViewLayout programmerLayout{
     .choices = programmerChoices,
     .bracketCounter = {.left = 111, .top = 165, .width = 43, .height = 33},
     .bitDisplay = {.frame = {.left = 13, .top = 82, .width = 482, .height = 77}, .labels = bitLabels},
+    .statistics = {},
+};
+
+// The display is 188 px high: the selection buttons, the list (five rows of 18 px), a thin line, the count, and the
+// number with the M at the bottom; no expression line
+const ViewLayout statisticsLayout{
+    .clientWidth = 264,
+    .clientHeight = 456,
+    .displayFrame = {.left = 13, .top = 13, .width = 238, .height = 188},
+    .expressionLine = {},
+    .memoryMark = {.left = 19, .top = 171, .width = 17, .height = 23},
+    .mainNumber = {.left = 35, .top = 159, .width = 208, .height = 36},
+    .buttons = statisticsButtons,
+    .frames = {},
+    .choices = {},
+    .bracketCounter = {},
+    .bitDisplay = {},
+    .statistics = {.list = {.left = 21, .top = 47, .width = 224, .height = 91},
+                   .rowHeight = 18,
+                   .divider = {.left = 17, .top = 140, .width = 230, .height = 1},
+                   .countLabel = {.left = 19, .top = 143, .width = 47, .height = 19},
+                   .countValue = {.left = 66, .top = 143, .width = 66, .height = 19},
+                   .upButton = {.left = 194, .top = 21, .width = 22, .height = 21},
+                   .downButton = {.left = 221, .top = 21, .width = 22, .height = 21}},
 };
 
 }  // namespace
@@ -287,6 +357,7 @@ const ViewLayout& layoutOf(View view)
     switch (view) {
     case View::Scientific: return scientificLayout;
     case View::Programmer: return programmerLayout;
+    case View::Statistics: return statisticsLayout;
     case View::Standard: break;
     }
     return standardLayout;

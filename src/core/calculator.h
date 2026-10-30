@@ -1,5 +1,6 @@
 #pragma once
 
+#include "core/commands.h"
 #include "core/enginetexts.h"
 #include "core/view.h"
 
@@ -7,16 +8,20 @@
 #include "Header Files/CalcEngine.h"
 #include "Header Files/Rational.h"
 
+#include <cstddef>
 #include <cstdint>
 #include <memory>
 #include <optional>
 #include <string>
 #include <string_view>
+#include <vector>
 
 // --- Version ------------------------------------------------------------
-// src/core/calculator.h 0.3.8
+// src/core/calculator.h 0.4.11
 
 // --- Version history ----------------------------------------------------
+// v0.4.11: The Statistics view: a fourth engine (16 digits, as Windows 7), the list of values with its selection, Add,
+//          CAD, the statistics computed on the engine's exact fractions (D-010, D-023)
 // v0.3.8: The Programmer view: a third engine in integer mode (64 bits); bases and word sizes kept over a view change;
 //         the bits; which commands each view and base allows (D-021)
 // v0.2.7: The Scientific view: its own engine with precedence and 32 digits, the one memory shared; Inv, the angle
@@ -71,6 +76,14 @@ public:
     [[nodiscard]] static bool isAvailable(View view, NumberBase base, std::string_view commandId);
     [[nodiscard]] bool isAvailable(std::string_view commandId) const;
 
+    // The Statistics view's list: every value Add put in, the oldest first, each written as the display writes a
+    // number (F-E included); the list is kept over a view change, as in Windows 7
+    [[nodiscard]] std::vector<std::wstring> statisticsValues();
+    [[nodiscard]] std::size_t statisticsCount() const;
+    // The selected item of the list (Add selects the new one); nothing when the list is empty
+    // (the command "statistics.select.N" selects item N, as a click on it does)
+    [[nodiscard]] std::optional<std::size_t> selectedValue() const;
+
 private:
     class Display;
 
@@ -78,6 +91,10 @@ private:
     void resetWrapperState();
     void runScientific(std::uintptr_t opCode);
     void runProgrammer(std::uintptr_t opCode);
+    void runStatistics(std::uintptr_t opCode);
+    void runStatisticsCommand(const CommandTarget& target);
+    void showStatistic(Statistic statistic);
+    void deleteSelectedValue();
     [[nodiscard]] CCalcEngine* engineOf(View view) const;
     void runEngine(std::uintptr_t opCode);
     void binaryOperator(std::uintptr_t opCode);
@@ -94,11 +111,14 @@ private:
     std::shared_ptr<CalculationManager::CalculatorHistory> m_standardHistory;
     std::shared_ptr<CalculationManager::CalculatorHistory> m_scientificHistory;
     std::shared_ptr<CalculationManager::CalculatorHistory> m_programmerHistory;
+    std::shared_ptr<CalculationManager::CalculatorHistory> m_statisticsHistory;
     // One engine per view, as Windows 10 has: Standard calculates from left to right with 16 digits, Scientific with
-    // precedence and 32 digits, Programmer with precedence on 64-bit integers. m_engine is the engine of the current view.
+    // precedence and 32 digits, Programmer with precedence on 64-bit integers, Statistics (no operators) with 16 digits.
+    // m_engine is the engine of the current view.
     std::unique_ptr<CCalcEngine> m_standardEngine;
     std::unique_ptr<CCalcEngine> m_scientificEngine;
     std::unique_ptr<CCalcEngine> m_programmerEngine;
+    std::unique_ptr<CCalcEngine> m_statisticsEngine;
     CCalcEngine* m_engine = nullptr;
     View m_view = View::Standard;
     bool m_inverse = false;
@@ -106,6 +126,11 @@ private:
     bool m_scientificNotation = false;
     NumberBase m_numberBase = NumberBase::Decimal;
     WordSize m_wordSize = WordSize::Qword;
+    // The Statistics view: the list (exact values), its selected item, and the wrapper's own error text ("Enter data
+    // to calculate", which the engine does not have); empty while no such error shows
+    std::vector<CalcEngine::Rational> m_values;
+    std::optional<std::size_t> m_selected;
+    std::wstring m_statisticsError;
 
     // The expression line (Windows 7): the finished part ("2 + 3 *"), whether the last command was a binary operator,
     // the operator pending in the engine, and its left value while it is multiply or divide (for percent)

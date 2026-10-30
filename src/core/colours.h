@@ -3,9 +3,10 @@
 #include <cstdint>
 
 // --- Version ------------------------------------------------------------
-// src/core/colours.h 0.3.8
+// src/core/colours.h 0.4.11
 
 // --- Version history ----------------------------------------------------
+// v0.4.11: The Statistics view's list, count and selection buttons
 // v0.3.8: The flat face of A to F, the bit display; the choice colours serve angle units, bases and word sizes
 // v0.2.7: The faces of function, memory, toggle and greyed buttons; the angle units and the bracket counter
 // v0.1.6: Initial: the colours of the Standard view, close to the Windows 7 Calculator (D-005, D-018)
@@ -92,6 +93,16 @@ inline constexpr Colour bitPositionText{.red = 0x66, .green = 0x66, .blue = 0x66
 inline constexpr Colour counterBorder{.red = 0x8E, .green = 0x9C, .blue = 0xAD};
 inline constexpr Colour counterFace{.red = 0xD9, .green = 0xE4, .blue = 0xF1};
 inline constexpr Colour counterText{.red = 0x1E, .green = 0x39, .blue = 0x5B};
+// The Statistics view's list inside the display (windows7-statistics.md part A): grey values on the display's own
+// face, a dotted line under each row, the selected row light blue; a thin line above the count; the small flat
+// buttons that move the selection, with a dark triangle
+inline constexpr Colour listText{.red = 0x59, .green = 0x6B, .blue = 0x72};
+inline constexpr Colour listSelected{.red = 0x9E, .green = 0xCB, .blue = 0xF5};
+inline constexpr Colour listRowLine{.red = 0x74, .green = 0xAA, .blue = 0xBD};
+inline constexpr Colour listDivider{.red = 0xD1, .green = 0xD7, .blue = 0xDE};
+inline constexpr Colour countText{.red = 0x1E, .green = 0x39, .blue = 0x5B};
+inline constexpr Colour arrowFace{.red = 0xE2, .green = 0xED, .blue = 0xFA};
+inline constexpr Colour arrowGlyph{.red = 0x1E, .green = 0x39, .blue = 0x5B};
 // A button under the mouse: a warm golden glow
 inline constexpr Colour buttonHoverBorder{.red = 0xC2, .green = 0x9B, .blue = 0x45};
 inline constexpr Colour buttonHoverTop{.red = 0xFF, .green = 0xF4, .blue = 0xD4};

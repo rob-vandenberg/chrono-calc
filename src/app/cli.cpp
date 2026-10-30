@@ -1,23 +1,27 @@
 #include "core/calculator.h"
 #include "core/commands.h"
 #include "core/keys.h"
+#include "core/view.h"
 
 #include <cstddef>
 #include <iostream>
 #include <span>
 #include <string>
 #include <string_view>
+#include <optional>
 
 // --- Version ------------------------------------------------------------
-// src/app/cli.cpp 0.2.7
+// src/app/cli.cpp 0.4.11
 
 // --- Version history ----------------------------------------------------
+// v0.4.11: In the Statistics view also the count, the list and the selected item
 // v0.2.7: Typed characters are read in the calculator's current view (the Scientific keys)
 // v0.0.4: Initial: runs key presses and commands without a screen and prints what the calculator shows
 
 // chrono-calc-cli: for tests, AI agents and quick result checks (AGENTS.md 4.3). Each argument is a command id
 // (memory.store, clear_entry) or a run of typed characters (12+3=). Prints the display, the expression line, whether
-// an error shows and whether a number is in memory. Exit 2 for an argument it cannot read.
+// an error shows and whether a number is in memory; in the Statistics view also the count, the list (values separated by
+// " | ") and the selected item (from 0, "none"). Exit 2 for an argument it cannot read.
 namespace {
 
 std::string narrow(const std::wstring& text)
@@ -74,5 +78,15 @@ int main(int argc, char* argv[])
               << "expression: " << narrow(calculator.expression()) << '\n'
               << "error: " << (calculator.isError() ? "yes" : "no") << '\n'
               << "memory: " << (calculator.hasMemory() ? "yes" : "no") << '\n';
+    if (calculator.view() == chrono_calc::View::Statistics) {
+        std::cout << "count: " << calculator.statisticsCount() << '\n' << "values:";
+        const char* separator = " ";
+        for (const std::wstring& value : calculator.statisticsValues()) {
+            std::cout << separator << narrow(value);
+            separator = " | ";
+        }
+        const std::optional<std::size_t> selected = calculator.selectedValue();
+        std::cout << '\n' << "selected: " << (selected ? std::to_string(*selected) : std::string("none")) << '\n';
+    }
     return 0;
 }

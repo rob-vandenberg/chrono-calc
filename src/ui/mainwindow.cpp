@@ -22,6 +22,7 @@
 #include <QSettings>
 #include <QSize>
 #include <QString>
+#include <QStringList>
 #include <QVariant>
 #include <QWidget>
 
@@ -37,8 +38,10 @@
 #include "ui/displaypanel.h"
 #include "ui/keyboardlayouts.h"
 #include "ui/look.h"
+#include "ui/statisticsparts.h"
 #include "ui/viewparts.h"
 
+#include <cstddef>
 #include <cstdint>
 #include <map>
 #include <optional>
@@ -46,9 +49,10 @@
 #include <string_view>
 
 // --- Version ------------------------------------------------------------
-// src/ui/mainwindow.cpp 0.3.10
+// src/ui/mainwindow.cpp 0.4.11
 
 // --- Version history ----------------------------------------------------
+// v0.4.11: The Statistics view: its size, the list of values with its selection buttons, the count (D-023)
 // v0.3.10: On a layout that is not Latin a key's place letter comes first, a sign only where the view has no command
 // v0.3.9: A letter of another script (Russian, Greek, Arabic) is read as the Latin letter at its key's position
 // v0.3.8: The Programmer view: its size, the bases and word sizes, the bit display, the digits each base allows
@@ -68,12 +72,14 @@ const QString viewKey = QStringLiteral("window/view");
 const QString scientificName = QStringLiteral("scientific");
 const QString programmerName = QStringLiteral("programmer");
 const QString standardName = QStringLiteral("standard");
+const QString statisticsName = QStringLiteral("statistics");
 
 QString nameOf(View view)
 {
     switch (view) {
     case View::Scientific: return scientificName;
     case View::Programmer: return programmerName;
+    case View::Statistics: return statisticsName;
     case View::Standard: break;
     }
     return standardName;
@@ -209,6 +215,8 @@ MainWindow::MainWindow(Separators separators, QWidget* parent)
         m_calculator.run("view.scientific");
     } else if (savedView == programmerName) {
         m_calculator.run("view.programmer");
+    } else if (savedView == statisticsName) {
+        m_calculator.run("view.statistics");
     }
     buildView(m_calculator.view());
     // The window has the size of its view, as in Windows 7: it cannot be resized or maximised
@@ -304,6 +312,7 @@ void MainWindow::buildView(View view)
     m_choiceButtons.clear();
     m_bracketCounter = nullptr;
     m_bitDisplay = nullptr;
+    m_statisticsList = nullptr;
 
     const ViewLayout& layout = layoutOf(view);
     m_builtView = view;
@@ -335,6 +344,31 @@ void MainWindow::buildView(View view)
         m_bitDisplay->show();
         m_viewParts.push_back(m_bitDisplay);
     }
+    if (layout.statistics.list.width > 0) {
+        // The list and its two selection buttons lie on the display (Windows 7)
+        const StatisticsSpec& statistics = layout.statistics;
+        m_statisticsList = new StatisticsList(statistics, m_area);
+        m_statisticsList->setObjectName(QStringLiteral("statistics.list"));
+        m_statisticsList->setGeometry(toRect(statistics.list));
+        connect(m_statisticsList, &StatisticsList::indexChosen, this, [this](int index) { selectValue(index); });
+        connect(m_statisticsList, &StatisticsList::previousChosen, this, [this] { runCommand("statistics.select_previous"); });
+        connect(m_statisticsList, &StatisticsList::nextChosen, this, [this] { runCommand("statistics.select_next"); });
+        connect(m_statisticsList, &StatisticsList::deleteChosen, this, [this] { runCommand("statistics.delete"); });
+        m_statisticsList->show();
+        m_viewParts.push_back(m_statisticsList);
+        for (const bool up : {true, false}) {
+            auto* arrow = new SelectionArrow(up, m_area);
+            arrow->setObjectName(up ? QStringLiteral("statistics.up") : QStringLiteral("statistics.down"));
+            arrow->setGeometry(toRect(up ? statistics.upButton : statistics.downButton));
+            // The selection moves, and the list takes the keyboard focus (Windows 7)
+            connect(arrow, &SelectionArrow::clicked, this, [this, up] {
+                m_statisticsList->setFocus();
+                runCommand(up ? "statistics.select_previous" : "statistics.select_next");
+            });
+            arrow->show();
+            m_viewParts.push_back(arrow);
+        }
+    }
     if (layout.bracketCounter.width > 0) {
         m_bracketCounter = new BracketCounter(m_area);
         m_bracketCounter->setObjectName(QStringLiteral("brackets"));
@@ -352,7 +386,7 @@ void MainWindow::buildView(View view)
         button->setObjectName(QStringLiteral("button.") + fromView(spec.commandId));
         button->setGeometry(toRect(spec.rectangle));
         const std::string_view commandId = spec.commandId;
-        connect(button, &CalcButton::clicked, this, [this, commandId] { runCommand(commandId); });
+        connect(button, &CalcButton::clicked, this, [this, commandId] { runButtonCommand(commandId); });
         button->show();
         m_viewParts.push_back(button);
         m_buttons.push_back(button);
@@ -362,6 +396,22 @@ void MainWindow::buildView(View view)
 void MainWindow::runCommand(std::string_view commandId)
 {
     m_calculator.run(commandId);
+    showCalculator();
+}
+
+void MainWindow::runButtonCommand(std::string_view commandId)
+{
+    if (m_statisticsList != nullptr && m_statisticsList->hasFocus()) {
+        m_area->setFocus();
+    }
+    runCommand(commandId);
+}
+
+void MainWindow::selectValue(int index)
+{
+    if (index >= 0) {
+        m_calculator.run("statistics.select." + std::to_string(index));
+    }
     showCalculator();
 }
 
@@ -418,6 +468,15 @@ void MainWindow::showCalculator()
     if (m_bracketCounter != nullptr) {
         m_bracketCounter->showCount(m_calculator.openBrackets());
     }
+    if (m_statisticsList != nullptr) {
+        QStringList values;
+        for (const std::wstring& value : m_calculator.statisticsValues()) {
+            values.append(QString::fromStdWString(value));
+        }
+        const std::optional<std::size_t> selected = m_calculator.selectedValue();
+        m_statisticsList->showValues(values, selected ? static_cast<int>(*selected) : -1);
+        m_display->showCount(static_cast<int>(m_calculator.statisticsCount()));
+    }
 }
 
 void MainWindow::keyPressEvent(QKeyEvent* event)
@@ -457,6 +516,10 @@ void MainWindow::keyPressEvent(QKeyEvent* event)
         return;
     }
     event->accept();
+    // Add (Enter) and C (Escape) take the keyboard focus back from the list (Windows 7)
+    if (m_statisticsList != nullptr && m_statisticsList->hasFocus() && (*command == "statistics.add" || *command == "clear")) {
+        m_area->setFocus();
+    }
     runKeyCommand(*command);
 }
 

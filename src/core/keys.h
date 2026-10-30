@@ -7,9 +7,10 @@
 #include <string_view>
 
 // --- Version ------------------------------------------------------------
-// src/core/keys.h 0.3.9
+// src/core/keys.h 0.4.11
 
 // --- Version history ----------------------------------------------------
+// v0.4.11: The keys of the Statistics view: digits, a s t d, x e v; Enter is Add; Ctrl+A/S/T
 // v0.3.9: The letter at a key's position, for keyboards without Latin letters
 // v0.3.8: The keys of the Programmer view: & | ^ ~ < > % ( ), a to f, j and k, F2 to F8 and F12
 // v0.2.7: The keys of the Scientific view: letters, ( ) # ! ;, F3 to F5, Ctrl+Y/G/B/S/O/T
@@ -24,6 +25,7 @@ namespace chrono_calc {
 // y (x^y) q (x²) d (Mod); letters typed with Shift do nothing there. Programmer: & (And) | (Or) ^ (Xor) ~ (Not)
 // < (Lsh) > (Rsh) % (Mod) ( ), a to f and A to F (the hexadecimal digits, also with Shift), j (RoL) k (RoR). The
 // window gives a letter key pressed without Shift as its small letter, also with Caps Lock on, as Windows 7 reads keys.
+// Statistics: only the digits, . and , and Enter (Add), a (x̄) s (Σx) t (σn) d (CAD) x and e (Exp) v (F-E).
 std::optional<std::string_view> commandForCharacter(char32_t character, View view = View::Standard);
 
 // The keys of the Standard view that type no character
@@ -46,11 +48,11 @@ enum class Key : std::uint8_t
 
 // The command such a key gives, as in Windows 7: Escape = C, Delete = CE, Backspace, Enter = equals, F9 = plus/minus;
 // in the Scientific view F3, F4 and F5 = Degrees, Radians and Grads; in the Programmer view F5 to F8 = Hex, Dec, Oct,
-// Bin and F12, F2, F3, F4 = Qword, Dword, Word, Byte
+// Bin and F12, F2, F3, F4 = Qword, Dword, Word, Byte; in the Statistics view Enter = Add and Delete nothing (no CE)
 std::optional<std::string_view> commandForKey(Key key, View view = View::Standard);
 
 // The command of Ctrl with this letter, as in Windows 7: L = MC, R = MR, M = MS, P = M+, Q = M-; in the Scientific view
-// also Y = y√x, G = 10^x, B = ∛x, S = sinh, O = cosh, T = tanh
+// also Y = y√x, G = 10^x, B = ∛x, S = sinh, O = cosh, T = tanh; in the Statistics view A = x̄², S = Σx², T = σn-1
 std::optional<std::string_view> commandForControlLetter(char32_t letter, View view = View::Standard);
 
 // The small Latin letter of the US keyboard at the key with this PC scan code (set 1, which Linux and Windows share:

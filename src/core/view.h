@@ -3,20 +3,22 @@
 #include <cstdint>
 
 // --- Version ------------------------------------------------------------
-// src/core/view.h 0.3.8
+// src/core/view.h 0.4.11
 
 // --- Version history ----------------------------------------------------
+// v0.4.11: The Statistics view
 // v0.3.8: The Programmer view, its number bases and word sizes
 // v0.2.7: Initial: the views and the angle units
 
 namespace chrono_calc {
 
-// The views of the calculator (Statistics comes later)
+// The views of the calculator
 enum class View : std::uint8_t
 {
     Standard,
     Scientific,
     Programmer,
+    Statistics,
 };
 
 // The angle unit of the Scientific view's trigonometry

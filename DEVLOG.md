@@ -88,3 +88,11 @@ Append-only. One entry per completed task, newest last.
 - Chrono Calc read the Greek Q key's ; as Int and the Hebrew Q key's / as divide in Scientific. Qt does not say which layout typed a sign, so `ui/keyboardlayouts` reads the layouts in use (X11 `_XKB_RULES_NAMES`, Wayland's keyboard description, XKB's defaults in the tests) and tells whether the sign comes from a layout that is not Latin (D-022). Checked on this desktop: the X11 reading finds the us layout.
 - Builds need xkbcommon, xcb and wayland-client; `build-release.sh` installs their build packages in Debian 12 and AlmaLinux 9.
 - Tests: `test_keyboardlayouts` (Greek, Hebrew, AZERTY, Dvorak, US) and `aSignOnALetterPlaceCountsOnlyWhereTheLetterHasNoCommand` (shown to fail on 0.3.9); the related tests pass with GCC 15, Clang 21 and on Debian 12 (Qt 6.4).
+
+## 2026-10-30: 0.4.11, M4 the Statistics view (task 4.1)
+
+- Measured on the Windows 7 Calculator through the Windows computer's session: the layout (264 x 456, 29 buttons, the list of five rows inside a 188 px display, the count, the ▲ ▼ buttons), keys, the list's selection, focus and Delete, C and CAD, the error, view changes, F-E, 16-digit results of six lists (`tests/reference/windows7-statistics.md`).
+- A fourth engine (16 digits, no operators); the list of exact values, Add, CAD, x̄ x̄² Σx Σx² σn σn-1 on the engine's fractions and its own square root (`core/statistics`), "Enter data to calculate"; the list widget and the selection buttons (`ui/statisticsparts`) (D-023).
+- Found through Windows 7: Σx of an empty list is "Enter data to calculate", not 0. Windows 7's fault of never deleting the last value is not copied.
+- Review: selecting an item was not a command (only the window could do it); now `statistics.select.N`, and the CLI prints the list. A statistic the number library cannot compute shows the engine's overflow.
+- Tests: `test_reference_statistics` (53 rows and behaviours), the Statistics parts of `test_mainwindow` and `test_standardview`, `cli_shows_the_statistics_list`; the related 13 tests pass with GCC 15, Clang 21 and on Debian 12 (Qt 6.4). The new tests cannot build on 0.3.10 (no Statistics commands there).

@@ -1,17 +1,21 @@
 #include "core/commands.h"
 
+#include "core/statistics.h"
+
 #include "CalcManager/Command.h"
 
 #include <algorithm>
 #include <array>
+#include <cstddef>
 #include <optional>
 #include <string_view>
 #include <vector>
 
 // --- Version ------------------------------------------------------------
-// src/core/commands.cpp 0.3.8
+// src/core/commands.cpp 0.4.11
 
 // --- Version history ----------------------------------------------------
+// v0.4.11: The commands of the Statistics view (Add, CAD, the statistics, the list's selection and Delete)
 // v0.3.8: The commands of the Programmer view (bases, word sizes, A to F, logic, shifts, rotations, the 64 bits)
 // v0.2.7: The commands of the Scientific view (functions, brackets, Inv, the angle units, F-E, Exp, Mod)
 // v0.1.6: view.basic (View > Basic: no side panel)
@@ -32,12 +36,18 @@ struct Entry
 
 constexpr Entry engine(std::string_view id, Command command)
 {
-    return {.id = id, .target = {.kind = CommandKind::Engine, .engineCommand = command}};
+    return {.id = id, .target = {.kind = CommandKind::Engine, .engineCommand = command, .statistic = Statistic::Mean}};
 }
 
 constexpr Entry own(std::string_view id, CommandKind kind)
 {
-    return {.id = id, .target = {.kind = kind, .engineCommand = Command::CommandNULL}};
+    return {.id = id, .target = {.kind = kind, .engineCommand = Command::CommandNULL, .statistic = Statistic::Mean}};
+}
+
+constexpr Entry statistic(std::string_view id, Statistic which)
+{
+    return {.id = id,
+            .target = {.kind = CommandKind::StatisticsFunction, .engineCommand = Command::CommandNULL, .statistic = which}};
 }
 
 constexpr std::array registry = {
@@ -188,13 +198,48 @@ constexpr std::array registry = {
     own("view.standard", CommandKind::ViewStandard),
     own("view.scientific", CommandKind::ViewScientific),
     own("view.programmer", CommandKind::ViewProgrammer),
+    own("view.statistics", CommandKind::ViewStatistics),
     own("view.basic", CommandKind::ViewBasic),
+    // The Statistics view
+    own("statistics.add", CommandKind::StatisticsAdd),
+    own("statistics.clear_all", CommandKind::StatisticsClearAll),
+    statistic("statistics.mean", Statistic::Mean),
+    statistic("statistics.mean_of_squares", Statistic::MeanOfSquares),
+    statistic("statistics.sum", Statistic::Sum),
+    statistic("statistics.sum_of_squares", Statistic::SumOfSquares),
+    statistic("statistics.deviation", Statistic::PopulationDeviation),
+    statistic("statistics.sample_deviation", Statistic::SampleDeviation),
+    own("statistics.select_previous", CommandKind::StatisticsSelectPrevious),
+    own("statistics.select_next", CommandKind::StatisticsSelectNext),
+    own("statistics.delete", CommandKind::StatisticsDelete),
 };
+
+// "statistics.select.N": N is the item's index, at most nine digits
+std::optional<CommandTarget> selectCommand(std::string_view id)
+{
+    constexpr std::string_view prefix = "statistics.select.";
+    constexpr std::size_t mostDigits = 9;
+    if (!id.starts_with(prefix)) {
+        return std::nullopt;
+    }
+    const std::string_view digits = id.substr(prefix.size());
+    if (digits.empty() || digits.size() > mostDigits || !std::ranges::all_of(digits, [](char digit) { return digit >= '0' && digit <= '9'; })) {
+        return std::nullopt;
+    }
+    std::size_t index = 0;
+    for (const char digit : digits) {
+        index = (index * 10) + static_cast<std::size_t>(digit - '0');
+    }
+    return CommandTarget{.kind = CommandKind::StatisticsSelect, .engineCommand = Command::CommandNULL, .statistic = Statistic::Mean, .index = index};
+}
 
 }  // namespace
 
 std::optional<CommandTarget> findCommand(std::string_view id)
 {
+    if (auto select = selectCommand(id)) {
+        return select;
+    }
     const auto* found = std::ranges::find(registry, id, &Entry::id);
     if (found == registry.end()) {
         return std::nullopt;

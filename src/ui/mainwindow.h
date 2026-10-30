@@ -18,9 +18,10 @@ class QKeyEvent;
 class QMenu;
 
 // --- Version ------------------------------------------------------------
-// src/ui/mainwindow.h 0.3.8
+// src/ui/mainwindow.h 0.4.11
 
 // --- Version history ----------------------------------------------------
+// v0.4.11: The Statistics view: its size, the list of values with its selection buttons, the count (D-023)
 // v0.3.8: The Programmer view: its size, the bases and word sizes, the bit display, the digits each base allows
 // v0.2.7: The Scientific view; View > Standard and Scientific switch the buttons and the window size; the view is
 //         remembered; Inv labels, the toggles, the angle units and the bracket counter follow the calculator (D-020)
@@ -35,6 +36,7 @@ class BracketCounter;
 class ChoiceButton;
 class CalcButton;
 class DisplayPanel;
+class StatisticsList;
 
 // The calculator's window. Every key, click and menu item runs a command of the core and then shows what the
 // calculator shows; the window computes nothing itself (AGENTS.md 4.1, 4.3).
@@ -64,6 +66,11 @@ private:
     void runBitCommand(int bit);
     // Runs a command that came from the keyboard and shows its button pressed for a moment
     void runKeyCommand(std::string_view commandId);
+    // A calculator button was clicked: it runs its command, and the keyboard focus goes back from the list to the
+    // calculator (Windows 7)
+    void runButtonCommand(std::string_view commandId);
+    // The Statistics view's list selects this value (a click, Home, End, Page Up, Page Down)
+    void selectValue(int index);
     void showCalculator();
     void restorePosition();
     void savePosition() const;
@@ -79,6 +86,7 @@ private:
     std::vector<ChoiceButton*> m_choiceButtons;
     BracketCounter* m_bracketCounter = nullptr;
     BitDisplay* m_bitDisplay = nullptr;
+    StatisticsList* m_statisticsList = nullptr;
     std::vector<QAction*> m_viewActions;
 };
 

@@ -1,7 +1,8 @@
 # --- Version ------------------------------------------------------------
-# tests/CMakeLists.txt 0.3.10
+# tests/CMakeLists.txt 0.4.11
 
 # --- Version history ----------------------------------------------------
+# v0.4.11: test_reference_statistics (the Windows 7 Statistics results); the CLI shows the Statistics list
 # v0.3.10: test_keyboardlayouts (which layout a key comes from)
 # v0.3.8: test_reference_programmer (the Windows 7 Programmer results)
 # v0.2.7: test_reference_scientific (the Windows 7 Scientific results)
@@ -32,6 +33,7 @@ chrono_calc_test(test_reference_standard chrono_calc_core)
 chrono_calc_test(test_standardview chrono_calc_core)
 chrono_calc_test(test_reference_scientific chrono_calc_core)
 chrono_calc_test(test_reference_programmer chrono_calc_core)
+chrono_calc_test(test_reference_statistics chrono_calc_core)
 
 # The command-line driver, checked on exit code, output and error text (cli_check.cmake)
 function(chrono_calc_cli_test name exit_code output)
@@ -43,6 +45,8 @@ endfunction()
 # 12 + 3 x 2 = 30 from left to right, then a command id, then the memory
 chrono_calc_cli_test(cli_runs_keys_and_commands 0 "display: 0\nexpression: \nerror: no\nmemory: yes\n" 12+3*2= memory.store clear)
 chrono_calc_cli_test(cli_shows_the_result 0 "^display: 30\n" 12+3*2=)
+# The Statistics view: the list, its count and the selected item; item 1 selected, then Delete
+chrono_calc_cli_test(cli_shows_the_statistics_list 0 "count: 2\nvalues: 5 \\| 4\nselected: 1\n$" view.statistics 5 statistics.add 3 statistics.add 4 statistics.add statistics.select.1 statistics.delete)
 set(CHRONO_CALC_CLI_ERROR "-DERROR=cannot read 'x' in 2x3")
 chrono_calc_cli_test(cli_refuses_an_unknown_argument 2 "^$" 2x3)
 unset(CHRONO_CALC_CLI_ERROR)

@@ -42,7 +42,7 @@ Versions (D-013): M0 is 0.0.z, M1 0.1.z, M2 0.2.z and so on; M9 finished is 1.0.
 
 | Task | What | Status |
 |---|---|---|
-| 4.1 | The value list, Count, the statistic functions: our own code on the engine's exact fractions (D-010) | todo |
+| 4.1 | The value list, Count, the statistic functions: our own code on the engine's exact fractions (D-010) | done (0.4.11, D-023): the Windows 7 results and behaviours pass (`tests/test_reference_statistics.cpp`) |
 
 ## M5: History, Digit grouping, Edit
 

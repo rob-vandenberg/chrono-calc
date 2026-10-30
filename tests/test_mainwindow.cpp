@@ -23,6 +23,7 @@
 #include "ui/calcbutton.h"
 #include "ui/displaypanel.h"
 #include "ui/mainwindow.h"
+#include "ui/statisticsparts.h"
 #include "ui/viewparts.h"
 
 #include <algorithm>
@@ -31,9 +32,10 @@
 #include <memory>
 
 // --- Version ------------------------------------------------------------
-// tests/test_mainwindow.cpp 0.3.10
+// tests/test_mainwindow.cpp 0.4.11
 
 // --- Version history ----------------------------------------------------
+// v0.4.11: The Statistics view: its size, the list, the count, the selection buttons, the keyboard focus of the list
 // v0.3.10: Greek and Hebrew: the Q key is x² in Scientific; in Standard its sign counts
 // v0.3.9: A Russian keyboard keeps the letter keys and Ctrl letters; AZERTY keeps its own letters
 // v0.3.8: The Programmer view: its size, the bases, the bit display and its clicks, the greyed digits
@@ -388,13 +390,13 @@ private slots:
         QVERIFY(scientificItem != nullptr && scientificItem->isEnabled() && !scientificItem->isChecked());
         QCOMPARE(scientificItem->shortcut(), QKeySequence(QStringLiteral("Alt+2")));
         QVERIFY(actionOf(view, QStringLiteral("&Programmer"))->isEnabled());
-        for (const QString& greyed : {QStringLiteral("St&atistics"),
-                                      QStringLiteral("Histor&y"), QStringLiteral("D&igit grouping"), QStringLiteral("&Unit conversion"),
+        QVERIFY(actionOf(view, QStringLiteral("St&atistics"))->isEnabled());
+        QCOMPARE(actionOf(view, QStringLiteral("St&atistics"))->shortcut(), QKeySequence(QStringLiteral("Alt+4")));
+        for (const QString& greyed : {QStringLiteral("Histor&y"), QStringLiteral("D&igit grouping"), QStringLiteral("&Unit conversion"),
                                       QStringLiteral("&Date calculation")}) {
             const QAction* action = actionOf(view, greyed);
             QVERIFY2(action != nullptr && !action->isEnabled(), qPrintable(greyed));
         }
-        QCOMPARE(actionOf(view, QStringLiteral("St&atistics"))->text(), QStringLiteral("St&atistics\tAlt+4"));
         const QAction* worksheets = actionOf(view, QStringLiteral("&Worksheets"));
         QVERIFY(worksheets != nullptr && worksheets->menu() != nullptr);
         QCOMPARE(worksheets->menu()->actions().size(), 4);
@@ -543,6 +545,78 @@ private slots:
         QVERIFY(window->findChild<chrono_calc::ChoiceButton*>(QStringLiteral("choice.base.binary"))->isChecked());
         QVERIFY(window->findChild<chrono_calc::ChoiceButton*>(QStringLiteral("choice.word.byte"))->isChecked());
         QCOMPARE(displayOf(*window)->number(), QStringLiteral("0"));
+    }
+
+    // View > Statistics (Alt+4): Windows 7's size, the list in the display with its count; Enter adds, the newest is
+    // selected; a click on a value gives the list the keyboard focus, then the arrows move the selection and Delete
+    // removes the selected value; a calculator button or Enter gives the focus back (windows7-statistics.md part D)
+    static void theStatisticsViewWorksLikeWindows7()
+    {
+        const auto window = openWindow();
+        QVERIFY(window);
+        QTest::keyClick(window->centralWidget(), Qt::Key_4, Qt::AltModifier);
+        QCOMPARE(window->centralWidget()->size(), QSize(264, 456));
+        QTRY_COMPARE(window->findChildren<chrono_calc::CalcButton*>().size(), 29);
+        QVERIFY(actionOf(menuOf(*window, QStringLiteral("&View")), QStringLiteral("St&atistics"))->isChecked());
+        auto* list = window->findChild<chrono_calc::StatisticsList*>(QStringLiteral("statistics.list"));
+        QVERIFY(list != nullptr);
+        QCOMPARE(displayOf(*window)->countText(), QStringLiteral("Count = 0"));
+        for (const QString& value : {QStringLiteral("5"), QStringLiteral("3"), QStringLiteral("4"), QStringLiteral("6")}) {
+            QTest::keyClicks(window->centralWidget(), value);
+            QTest::keyClick(window->centralWidget(), Qt::Key_Return);
+        }
+        QCOMPARE(list->values(), QStringList({QStringLiteral("5"), QStringLiteral("3"), QStringLiteral("4"), QStringLiteral("6")}));
+        QCOMPARE(list->selected(), 3);
+        QCOMPARE(displayOf(*window)->countText(), QStringLiteral("Count = 4"));
+        QCOMPARE(displayOf(*window)->number(), QStringLiteral("0"));
+        // Delete without the list's focus does nothing (no CE in this view)
+        QTest::keyClicks(window->centralWidget(), QStringLiteral("7"));
+        QTest::keyClick(window->centralWidget(), Qt::Key_Delete);
+        QCOMPARE(displayOf(*window)->number(), QStringLiteral("7"));
+        QCOMPARE(list->values().size(), 4);
+        // A click on the second value selects it and gives the list the focus; Delete removes it, the next one moves up
+        // into the selection; the display keeps its number
+        QTest::mouseClick(list, Qt::LeftButton, Qt::NoModifier, QPoint(list->width() / 2, 18 + 9));
+        QCOMPARE(list->selected(), 1);
+        QVERIFY(list->hasFocus());
+        QTest::keyClick(list, Qt::Key_Delete);
+        QCOMPARE(list->values(), QStringList({QStringLiteral("5"), QStringLiteral("4"), QStringLiteral("6")}));
+        QCOMPARE(list->selected(), 1);
+        QCOMPARE(displayOf(*window)->countText(), QStringLiteral("Count = 3"));
+        QCOMPARE(displayOf(*window)->number(), QStringLiteral("7"));
+        QTest::keyClick(list, Qt::Key_Up);
+        QCOMPARE(list->selected(), 0);
+        QTest::keyClick(list, Qt::Key_Up);
+        QCOMPARE(list->selected(), 0);
+        QTest::keyClick(list, Qt::Key_End);
+        QCOMPARE(list->selected(), 2);
+        // Digits still go to the display while the list has the focus; Enter adds and gives the focus back
+        QTest::keyClicks(list, QStringLiteral("2"));
+        QCOMPARE(displayOf(*window)->number(), QStringLiteral("72"));
+        QVERIFY(list->hasFocus());
+        QTest::keyClick(list, Qt::Key_Return);
+        QVERIFY(!list->hasFocus());
+        QCOMPARE(list->values().last(), QStringLiteral("72"));
+        QCOMPARE(list->selected(), 3);
+        // The selection buttons move the selection and give the list the focus; a calculator button takes it back
+        QTest::mouseClick(window->findChild<chrono_calc::SelectionArrow*>(QStringLiteral("statistics.up")), Qt::LeftButton);
+        QCOMPARE(list->selected(), 2);
+        QVERIFY(list->hasFocus());
+        QTest::mouseClick(buttonOf(*window, QStringLiteral("statistics.mean")), Qt::LeftButton);
+        QVERIFY(!list->hasFocus());
+        QCOMPARE(displayOf(*window)->number(), QStringLiteral("21,75"));
+        // The list is kept over a view change; the number is cleared
+        QTest::keyClick(window->centralWidget(), Qt::Key_1, Qt::AltModifier);
+        QTest::keyClick(window->centralWidget(), Qt::Key_4, Qt::AltModifier);
+        // The parts of the previous view go once their own events are over
+        QTRY_COMPARE(window->findChildren<chrono_calc::StatisticsList*>().size(), 1);
+        list = window->findChild<chrono_calc::StatisticsList*>(QStringLiteral("statistics.list"));
+        QCOMPARE(list->values().size(), 4);
+        QCOMPARE(displayOf(*window)->number(), QStringLiteral("0"));
+        // D is CAD: the list is empty
+        QTest::keyClick(window->centralWidget(), Qt::Key_D);
+        QCOMPARE(list->values().size(), 0);
+        QCOMPARE(displayOf(*window)->countText(), QStringLiteral("Count = 0"));
     }
 
     // The window opens in the view it was closed in, as Windows 7 does

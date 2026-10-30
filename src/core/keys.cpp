@@ -9,9 +9,10 @@
 #include <utility>
 
 // --- Version ------------------------------------------------------------
-// src/core/keys.cpp 0.3.9
+// src/core/keys.cpp 0.4.11
 
 // --- Version history ----------------------------------------------------
+// v0.4.11: The keys of the Statistics view: digits, a s t d, x e v; Enter is Add; Ctrl+A/S/T
 // v0.3.9: The letter at a key's position, for keyboards without Latin letters
 // v0.3.8: The keys of the Programmer view: & | ^ ~ < > % ( ), a to f, j and k, F2 to F8 and F12
 // v0.2.7: The keys of the Scientific view: letters, ( ) # ! ;, F3 to F5, Ctrl+Y/G/B/S/O/T
@@ -107,6 +108,36 @@ std::optional<std::string_view> programmerCharacter(char32_t character)
     }
 }
 
+// The Statistics view has no operators: only the digits, the decimal point and its own letters (Windows 7,
+// windows7-statistics.md part C)
+std::optional<std::string_view> statisticsCharacter(char32_t character)
+{
+    switch (character) {
+    case U'0': return "digit.0";
+    case U'1': return "digit.1";
+    case U'2': return "digit.2";
+    case U'3': return "digit.3";
+    case U'4': return "digit.4";
+    case U'5': return "digit.5";
+    case U'6': return "digit.6";
+    case U'7': return "digit.7";
+    case U'8': return "digit.8";
+    case U'9': return "digit.9";
+    case U'.':
+    case U',': return "decimal";
+    case U'\r':
+    case U'\n': return "statistics.add";
+    case U'a': return "statistics.mean";
+    case U's': return "statistics.sum";
+    case U't': return "statistics.deviation";
+    case U'd': return "statistics.clear_all";
+    case U'x':
+    case U'e': return "exponent";
+    case U'v': return "scientific_notation";
+    default: return std::nullopt;
+    }
+}
+
 std::optional<std::string_view> programmerKey(Key key)
 {
     switch (key) {
@@ -136,6 +167,9 @@ std::optional<std::string_view> scientificKey(Key key)
 
 std::optional<std::string_view> commandForCharacter(char32_t character, View view)
 {
+    if (view == View::Statistics) {
+        return statisticsCharacter(character);
+    }
     if (const auto command = sharedCharacter(character)) {
         return command;
     }
@@ -154,6 +188,16 @@ std::optional<std::string_view> commandForCharacter(char32_t character, View vie
 
 std::optional<std::string_view> commandForKey(Key key, View view)
 {
+    if (view == View::Statistics) {
+        // No CE in the Statistics view: Delete removes the selected item only while the list has the keyboard focus
+        switch (key) {
+        case Key::Escape: return "clear";
+        case Key::Backspace: return "backspace";
+        case Key::Enter: return "statistics.add";
+        case Key::F9: return "negate";
+        default: return std::nullopt;
+        }
+    }
     switch (key) {
     case Key::Escape: return "clear";
     case Key::Delete: return "clear_entry";
@@ -165,7 +209,8 @@ std::optional<std::string_view> commandForKey(Key key, View view)
     switch (view) {
     case View::Scientific: return scientificKey(key);
     case View::Programmer: return programmerKey(key);
-    case View::Standard: break;
+    case View::Standard:
+    case View::Statistics: break;
     }
     return std::nullopt;
 }
@@ -184,6 +229,17 @@ std::optional<std::string_view> commandForControlLetter(char32_t letter, View vi
     case U'q':
     case U'Q': return "memory.subtract";
     default: break;
+    }
+    if (view == View::Statistics) {
+        switch (letter) {
+        case U'a':
+        case U'A': return "statistics.mean_of_squares";
+        case U's':
+        case U'S': return "statistics.sum_of_squares";
+        case U't':
+        case U'T': return "statistics.sample_deviation";
+        default: return std::nullopt;
+        }
     }
     if (view != View::Scientific) {
         return std::nullopt;

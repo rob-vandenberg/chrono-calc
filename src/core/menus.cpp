@@ -5,9 +5,10 @@
 #include <vector>
 
 // --- Version ------------------------------------------------------------
-// src/core/menus.cpp 0.3.8
+// src/core/menus.cpp 0.4.11
 
 // --- Version history ----------------------------------------------------
+// v0.4.11: View > Statistics is built
 // v0.3.8: View > Programmer is built
 // v0.2.7: View > Scientific is built
 // v0.1.6: Initial: the menus View, Edit and Help of the Windows 7 Calculator (D-018)
@@ -51,7 +52,7 @@ MenuItem submenu(std::string_view text, std::vector<MenuEntry> entries)
 
 }  // namespace
 
-// Only Standard and Basic are built in M1; every other item has no command yet and shows greyed
+// The four views and Basic are built; every other item has no command yet and shows greyed
 std::vector<Menu> standardMenus()
 {
     const Menu view{.title = "&View",
@@ -59,7 +60,7 @@ std::vector<Menu> standardMenus()
                   dotted(item("S&tandard", "Alt+1", "view.standard"), viewGroup, true),
                   dotted(item("&Scientific", "Alt+2", "view.scientific"), viewGroup, false),
                   dotted(item("&Programmer", "Alt+3", "view.programmer"), viewGroup, false),
-                  dotted(item("St&atistics", "Alt+4"), viewGroup, false),
+                  dotted(item("St&atistics", "Alt+4", "view.statistics"), viewGroup, false),
                   afterSeparator(item("Histor&y", "Ctrl+H")),
                   item("D&igit grouping"),
                   afterSeparator(dotted(item("&Basic", "Ctrl+F4", "view.basic"), panelGroup, true)),

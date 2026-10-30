@@ -2,6 +2,7 @@
 
 #include "core/commands.h"
 #include "core/enginetexts.h"
+#include "core/statistics.h"
 #include "core/view.h"
 
 #include "CalcManager/CalculatorHistory.h"
@@ -11,7 +12,9 @@
 #include "Header Files/CalcEngine.h"
 #include "Header Files/ICalcDisplay.h"
 #include "Header Files/Rational.h"
+#include "Ratpack/CalcErr.h"
 
+#include <algorithm>
 #include <cstddef>
 #include <cstdint>
 #include <memory>
@@ -22,9 +25,11 @@
 #include <vector>
 
 // --- Version ------------------------------------------------------------
-// src/core/calculator.cpp 0.3.8
+// src/core/calculator.cpp 0.4.11
 
 // --- Version history ----------------------------------------------------
+// v0.4.11: The Statistics view: a fourth engine (16 digits, as Windows 7), the list of values with its selection, Add,
+//          CAD, the statistics computed on the engine's exact fractions (D-010, D-023)
 // v0.3.8: The Programmer view: a third engine in integer mode (64 bits); bases and word sizes kept over a view change;
 //         the bits; which commands each view and base allows (D-021)
 // v0.2.7: The Scientific view: its own engine with precedence and 32 digits, the one memory shared; Inv, the angle
@@ -47,6 +52,8 @@ constexpr int32_t scientificPrecision = 32;
 constexpr int32_t programmerPrecision = 64;
 constexpr std::size_t bitCount = 64;
 constexpr std::size_t historySize = 20;
+// Windows 7's text when a statistic has too few values (none, or one for σn-1); the engine has no such text
+constexpr std::wstring_view enterDataText = L"Enter data to calculate";
 
 bool isBinaryOperator(std::uintptr_t opCode)
 {
@@ -173,13 +180,59 @@ std::wstring tightBrackets(const std::wstring& text)
     return result;
 }
 
+// What the Statistics view has (Windows 7, windows7-statistics.md part A): the digits, the decimal point, backspace, C,
+// plus/minus, the memory, F-E and Exp; no operators, no CE
+bool statisticsAllows(std::uintptr_t opCode)
+{
+    switch (opCode) {
+    case IDC_PNT:
+    case IDC_BACK:
+    case IDC_CLEAR:
+    case IDC_SIGN:
+    case IDC_MCLEAR:
+    case IDC_RECALL:
+    case IDC_STORE:
+    case IDC_MPLUS:
+    case IDC_MMINUS:
+    case IDC_FE:
+    case IDC_EXP:
+        return true;
+    default:
+        return opCode >= IDC_0 && opCode <= IDC_9;
+    }
+}
+
+bool isStatisticsCommand(CommandKind kind)
+{
+    switch (kind) {
+    case CommandKind::StatisticsAdd:
+    case CommandKind::StatisticsClearAll:
+    case CommandKind::StatisticsFunction:
+    case CommandKind::StatisticsSelect:
+    case CommandKind::StatisticsSelectPrevious:
+    case CommandKind::StatisticsSelectNext:
+    case CommandKind::StatisticsDelete:
+        return true;
+    default:
+        return false;
+    }
+}
+
+// Whether a statistic has enough values: every statistic needs one, σn-1 two (Windows 7 shows "Enter data to calculate"
+// otherwise, also for Σx of an empty list)
+bool hasEnoughValues(Statistic statistic, std::size_t count)
+{
+    return count >= (statistic == Statistic::SampleDeviation ? 2U : 1U);
+}
+
 // The precision of each view's engine
 int32_t precisionOf(View view)
 {
     switch (view) {
     case View::Scientific: return scientificPrecision;
     case View::Programmer: return programmerPrecision;
-    case View::Standard: break;
+    case View::Standard:
+    case View::Statistics: break;
     }
     return standardPrecision;
 }
@@ -311,22 +364,24 @@ Calculator::Calculator(Separators separators)
     , m_standardHistory(std::make_shared<CalculationManager::CalculatorHistory>(historySize))
     , m_scientificHistory(std::make_shared<CalculationManager::CalculatorHistory>(historySize))
     , m_programmerHistory(std::make_shared<CalculationManager::CalculatorHistory>(historySize))
+    , m_statisticsHistory(std::make_shared<CalculationManager::CalculatorHistory>(historySize))
     , m_standardEngine(newEngine(false /* left to right */, m_texts, m_display.get(), m_standardHistory))
     , m_scientificEngine(newEngine(true /* precedence */, m_texts, m_display.get(), m_scientificHistory))
     , m_programmerEngine(newEngine(true /* precedence */, m_texts, m_display.get(), m_programmerHistory, true /* integers */))
+    , m_statisticsEngine(newEngine(false /* no operators */, m_texts, m_display.get(), m_statisticsHistory))
     , m_engine(m_standardEngine.get())
 {
     // The engine never gives m_decimalSeparator a start value (CalcEngine.h:166), and SettingsChanged() only updates the
     // decimal symbol of its input when the new one differs from that value: by chance it may not, and then "0,1" is read
     // as an overflow. Reporting another separator once and then the real one makes the engine update it in every case.
     m_texts.setSeparators(Separators{.decimal = separators.decimal == L'.' ? L',' : L'.', .thousands = separators.thousands});
-    for (CCalcEngine* engine : {m_programmerEngine.get(), m_scientificEngine.get(), m_standardEngine.get()}) {
+    for (CCalcEngine* engine : {m_statisticsEngine.get(), m_programmerEngine.get(), m_scientificEngine.get(), m_standardEngine.get()}) {
         engine->SettingsChanged();
     }
     m_texts.setSeparators(separators);
     // The Standard engine is set up last: the number library's shared constants follow the last engine's precision, and
     // Standard is the view the calculator starts in
-    for (const View view : {View::Programmer, View::Scientific, View::Standard}) {
+    for (const View view : {View::Statistics, View::Programmer, View::Scientific, View::Standard}) {
         CCalcEngine* engine = engineOf(view);
         engine->SettingsChanged();
         engine->ProcessCommand(IDC_DEC);
@@ -362,6 +417,20 @@ bool Calculator::run(std::string_view commandId)
     case CommandKind::ViewProgrammer:
         switchView(View::Programmer);
         return true;
+    case CommandKind::ViewStatistics:
+        switchView(View::Statistics);
+        return true;
+    case CommandKind::StatisticsAdd:
+    case CommandKind::StatisticsClearAll:
+    case CommandKind::StatisticsFunction:
+    case CommandKind::StatisticsSelect:
+    case CommandKind::StatisticsSelectPrevious:
+    case CommandKind::StatisticsSelectNext:
+    case CommandKind::StatisticsDelete:
+        if (m_view == View::Statistics) {
+            runStatisticsCommand(*target);
+        }
+        return true;
     case CommandKind::Inverse:
         // Not while an error shows: the engine then takes only C and CE
         if (m_view == View::Scientific && !isError()) {
@@ -387,6 +456,10 @@ bool Calculator::run(std::string_view commandId)
     }
     if (m_view == View::Programmer) {
         runProgrammer(opCode);
+        return true;
+    }
+    if (m_view == View::Statistics) {
+        runStatistics(opCode);
         return true;
     }
     if (isBinaryOperator(opCode)) {
@@ -444,6 +517,9 @@ bool Calculator::run(std::string_view commandId)
 
 std::wstring Calculator::display() const
 {
+    if (!m_statisticsError.empty()) {
+        return m_statisticsError;
+    }
     // The engine always groups hexadecimal, octal and binary numbers with spaces (scidisp.cpp, GroupDigitsPerRadix:
     // Windows 10's choice); Windows 7 starts with Digit grouping off and shows them whole, as it does decimals
     if (m_view == View::Programmer && m_numberBase != NumberBase::Decimal && !isError()) {
@@ -456,8 +532,8 @@ std::wstring Calculator::display() const
 
 std::wstring Calculator::expression() const
 {
-    if (m_view == View::Programmer) {
-        return {};  // Windows 7 shows no expression line in the Programmer view
+    if (m_view == View::Programmer || m_view == View::Statistics) {
+        return {};  // Windows 7 shows no expression line in the Programmer and Statistics views
     }
     if (m_view == View::Scientific) {
         // The engine's own expression with Windows 7's names; empty after =, but kept when = ends in an error ("1 /")
@@ -475,7 +551,7 @@ std::wstring Calculator::expression() const
 
 bool Calculator::isError() const
 {
-    return m_display->isError();
+    return m_display->isError() || !m_statisticsError.empty();
 }
 
 bool Calculator::hasMemory()
@@ -517,6 +593,9 @@ bool Calculator::isAvailable(View view, NumberBase base, std::string_view comman
     if (target->kind == CommandKind::Inverse) {
         return view == View::Scientific;
     }
+    if (isStatisticsCommand(target->kind)) {
+        return view == View::Statistics;
+    }
     if (target->kind != CommandKind::Engine) {
         return true;
     }
@@ -526,6 +605,8 @@ bool Calculator::isAvailable(View view, NumberBase base, std::string_view comman
         return opCode != IDC_PERCENT && !isProgrammerOnly(opCode);
     case View::Programmer:
         return programmerAllows(opCode, base);
+    case View::Statistics:
+        return statisticsAllows(opCode);
     case View::Standard:
         break;
     }
@@ -602,6 +683,7 @@ CCalcEngine* Calculator::engineOf(View view) const
     switch (view) {
     case View::Scientific: return m_scientificEngine.get();
     case View::Programmer: return m_programmerEngine.get();
+    case View::Statistics: return m_statisticsEngine.get();
     case View::Standard: break;
     }
     return m_standardEngine.get();
@@ -644,10 +726,15 @@ void Calculator::switchView(View view)
     const CalcEngine::Rational memory = memoryValue();
     // The engine takes nothing but C while it shows an error, so it is cleared before F-E and the unit are reset
     m_scientificEngine->ProcessCommand(IDC_CLEAR);
-    if (m_scientificNotation) {
+    if (m_scientificNotation && m_view == View::Scientific) {
         m_scientificEngine->ProcessCommand(IDC_FE);
     }
     m_scientificEngine->ProcessCommand(IDC_DEG);
+    m_statisticsEngine->ProcessCommand(IDC_CLEAR);
+    if (m_scientificNotation && m_view == View::Statistics) {
+        m_statisticsEngine->ProcessCommand(IDC_FE);
+    }
+    m_statisticsError.clear();
     m_inverse = false;
     m_angleUnit = AngleUnit::Degrees;
     m_scientificNotation = false;
@@ -702,6 +789,116 @@ void Calculator::runScientific(std::uintptr_t opCode)
                && opCode != IDC_DEG && opCode != IDC_RAD && opCode != IDC_GRAD) {
         m_afterEquals = false;
     }
+}
+
+// An engine command in the Statistics view. C clears the number and the wrapper's own error, and keeps the list and
+// F-E (Windows 7); the engine itself keeps its F-E over C.
+void Calculator::runStatistics(std::uintptr_t opCode)
+{
+    if (opCode == IDC_CLEAR) {
+        m_statisticsError.clear();
+    }
+    if (opCode == IDC_FE) {
+        m_scientificNotation = !m_scientificNotation;
+    }
+    runEngine(opCode);
+}
+
+void Calculator::runStatisticsCommand(const CommandTarget& target)
+{
+    switch (target.kind) {
+    case CommandKind::StatisticsClearAll:
+        // CAD works during an error too: it clears the number and the whole list; the memory stays (Windows 7)
+        m_values.clear();
+        m_selected.reset();
+        m_statisticsError.clear();
+        runEngine(IDC_CLEAR);
+        return;
+    case CommandKind::StatisticsSelect:
+        // An index outside the list changes nothing
+        if (target.index < m_values.size()) {
+            m_selected = target.index;
+        }
+        return;
+    case CommandKind::StatisticsSelectPrevious:
+        if (m_selected && *m_selected > 0) {
+            --*m_selected;
+        }
+        return;
+    case CommandKind::StatisticsSelectNext:
+        if (m_selected && *m_selected + 1 < m_values.size()) {
+            ++*m_selected;
+        }
+        return;
+    case CommandKind::StatisticsDelete:
+        deleteSelectedValue();
+        return;
+    default:
+        break;
+    }
+    // While an error shows, Add and the statistics are ignored (Windows 7)
+    if (isError()) {
+        return;
+    }
+    if (target.kind == CommandKind::StatisticsAdd) {
+        // The number shown goes to the end of the list and is selected; the display starts again at 0
+        m_values.push_back(currentValue());
+        m_selected = m_values.size() - 1;
+        runEngine(IDC_CLEAR);
+        return;
+    }
+    showStatistic(target.statistic);
+}
+
+// A statistic of the list becomes the current value, as a memory recall does; the list does not change. Too few
+// values give Windows 7's "Enter data to calculate".
+void Calculator::showStatistic(Statistic statistic)
+{
+    if (!hasEnoughValues(statistic, m_values.size())) {
+        m_statisticsError = enterDataText;
+        return;
+    }
+    const std::optional<CalcEngine::Rational> result = statisticOf(statistic, m_values);
+    if (!result) {
+        // The number library could not compute it (no list Windows 7 accepts does this): the engine's own overflow
+        m_engine->DisplayError(CALC_E_OVERFLOW);
+        return;
+    }
+    enterValue(*result);
+}
+
+void Calculator::deleteSelectedValue()
+{
+    if (!m_selected || *m_selected >= m_values.size()) {
+        return;
+    }
+    m_values.erase(m_values.begin() + static_cast<std::ptrdiff_t>(*m_selected));
+    if (m_values.empty()) {
+        m_selected.reset();
+    } else {
+        m_selected = std::min(*m_selected, m_values.size() - 1);
+    }
+}
+
+std::vector<std::wstring> Calculator::statisticsValues()
+{
+    std::vector<std::wstring> texts;
+    texts.reserve(m_values.size());
+    for (const CalcEngine::Rational& value : m_values) {
+        // The engine writes it as its display does: 16 digits, F-E, the regional decimal separator
+        texts.push_back(m_statisticsEngine->GetStringForDisplay(value, 10));
+    }
+    return texts;
+}
+
+std::size_t Calculator::statisticsCount() const
+{
+    return m_values.size();
+}
+
+std::optional<std::size_t> Calculator::selectedValue() const
+{
+    return m_selected;
 }
 
 void Calculator::runEngine(std::uintptr_t opCode)

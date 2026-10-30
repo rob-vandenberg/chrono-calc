@@ -7,9 +7,10 @@
 #include <string_view>
 
 // --- Version ------------------------------------------------------------
-// src/core/layout.h 0.3.8
+// src/core/layout.h 0.4.11
 
 // --- Version history ----------------------------------------------------
+// v0.4.11: The Statistics view: its buttons and the list inside the display (D-023)
 // v0.3.8: The Programmer view: its buttons, the bases and word sizes, the bit display; choices of any kind
 // v0.2.7: Every view's layout (Standard and Scientific); each button's face and its label under Inv (D-020)
 // v0.1.6: Initial: the Standard view's measures and buttons, as the Windows 7 Calculator (D-018)
@@ -72,11 +73,25 @@ struct BitDisplaySpec
     std::span<const BitLabelSpec> labels;
 };
 
+// The Statistics view's list inside the display (Windows 7, windows7-statistics.md part A): the list of values, the
+// thin line under it, "Count = " and the count, and the two small buttons that move the selection up and down
+struct StatisticsSpec
+{
+    Rectangle list;
+    // The height of one row of the list, its dotted line included
+    int rowHeight = 0;
+    Rectangle divider;
+    Rectangle countLabel;
+    Rectangle countValue;
+    Rectangle upButton;
+    Rectangle downButton;
+};
+
 // Where bit 0 to 63 of the bit display sits (Windows 7, windows7-programmer.md part A)
 Rectangle bitRectangle(int bit);
 
-// The layout of a view, measured on the Windows 7 Calculator (tests/reference/windows7-standard.md and
-// windows7-scientific.md, part A)
+// The layout of a view, measured on the Windows 7 Calculator (tests/reference/windows7-standard.md,
+// windows7-scientific.md, windows7-programmer.md and windows7-statistics.md, part A); an empty expression line has none
 struct ViewLayout
 {
     int clientWidth = 0;
@@ -93,6 +108,8 @@ struct ViewLayout
     Rectangle bracketCounter;
     // Programmer only (an empty frame elsewhere): the bit display
     BitDisplaySpec bitDisplay;
+    // Statistics only (an empty list elsewhere): the list of values in the display
+    StatisticsSpec statistics;
 };
 
 const ViewLayout& layoutOf(View view);
