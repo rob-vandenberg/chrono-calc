@@ -1,10 +1,11 @@
 cmake_minimum_required(VERSION 3.25)
-project(chrono-calc VERSION 0.0.3 LANGUAGES CXX)
+project(chrono-calc VERSION 0.0.4 LANGUAGES CXX)
 
 # --- Version ------------------------------------------------------------
-# CMakeLists.txt 0.0.3
+# CMakeLists.txt 0.0.4
 
 # --- Version history ----------------------------------------------------
+# v0.0.4: The project version for tasks 0.3 and 0.4
 # v0.0.3: Microsoft's engine core in third_party/calculator (task 0.2)
 # v0.0.2: The build skeleton (task 0.1): C++20, Qt 6 Widgets and Test, warnings as errors, clang-tidy, tests
 # v0.0.1: Initial: the project version only; the build comes in task 0.1

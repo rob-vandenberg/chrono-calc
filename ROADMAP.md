@@ -11,8 +11,8 @@ The engine survey behind this plan (2026-10-30, microsoft/calculator commit `79e
 | 0.0 | Project set up: git, documents, rules, push and release scripts, private GitHub repository | done |
 | 0.1 | Tools and skeleton: list what to install (Qt 6, CMake, clang-tidy); CMake with Qt 6 Widgets and Qt Test, warnings as errors, `.clang-tidy`, an empty window titled Chrono Calc, a first test, the layer check | done |
 | 0.2 | Engine import: copy the engine core from commit `79e1ac5` into `third_party/calculator/` with `LICENSE` and `SOURCE.md`, our own replacement for `pch.h` in `core`; build with GCC and Clang; port Microsoft's engine tests to Qt Test | done |
-| 0.3 | Wrapper and commands: connect the engine to `core` (`ICalcDisplay`), the command registry, the engine's texts (error messages) in the Windows 7 wording | todo |
-| 0.4 | A command-line test driver: runs any key sequence without a screen, for tests and quick result checks | todo |
+| 0.3 | Wrapper and commands: connect the engine to `core` (`ICalcDisplay`), the command registry, the engine's texts (error messages) in the Windows 7 wording | done |
+| 0.4 | A command-line test driver: runs any key sequence without a screen, for tests and quick result checks | done |
 
 Versions (D-013): M0 is 0.0.z, M1 0.1.z, M2 0.2.z and so on; M9 finished is 1.0.z, the first public release, and the repository goes public then (D-007). The owner says when y changes.
 

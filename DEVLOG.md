@@ -32,3 +32,11 @@ Append-only. One entry per completed task, newest last.
 - Qt 6.4 has no `QTest::setThrowOnFail`: removed; a failed check in a helper still fails the test. clang-tidy's complexity check now ignores macros (every QCOMPARE hides a branch) instead of NOLINT blocks.
 - The layer check also covers `third_party` (no Qt, core, ui or app), proven on two planted faults.
 - Open for 0.3: the engine's `GetString(int)` can store a key to a temporary for an unknown text number (Clang warning); our wrapper must supply every text number.
+
+## 2026-10-30: 0.0.4, tasks 0.3 Wrapper and commands, 0.4 Command-line driver
+
+- `core/calculator` wraps the engine (Standard mode), `core/commands` is the command registry, `core/enginetexts` gives a text for every text number the engine can look up (closes the dangling-key path of `GetString(int)`; 108 en-US texts plus 41 of ours), `core/keys` maps typed characters (D-015).
+- One memory as in Windows 7: MS replaces it. `chrono-calc-cli` runs key presses and commands without a screen (D-016).
+- Windows 7 reference data collected through the Windows computer's Claude session: layout, menus, 20 results (`tests/reference/windows7-standard.md`). 19 of 20 numbers match; differences in percent after multiply/divide, in the expression line and in the decimal separator are for task 1.5.
+- A fresh review found no bug and four weak tests (memory replace, CLI exit codes, CLI error text, the start value); all fixed: `memoryPlaces()`, `tests/cli_check.cmake`, the display starts empty until the engine reports.
+- 11 tests pass with GCC 15, Clang 21 and on Debian 12.
