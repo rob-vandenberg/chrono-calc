@@ -1,7 +1,8 @@
 # --- Version ------------------------------------------------------------
-# tests/CMakeLists.txt 0.0.2
+# tests/CMakeLists.txt 0.0.3
 
 # --- Version history ----------------------------------------------------
+# v0.0.3: Microsoft's engine tests in engine/; the layer check also reads third_party/
 # v0.0.2: Initial: the version, main window and layer tests; 20 seconds at most each, no screen needed
 
 # One Qt Test program per file; each test runs without a screen and stops after 20 seconds (AGENTS.md 4.5.3)
@@ -20,4 +21,7 @@ target_compile_definitions(test_version PRIVATE CHRONO_CALC_PROJECT_VERSION="${P
 chrono_calc_test(test_mainwindow chrono_calc_ui)
 
 chrono_calc_test(test_layers)
-target_compile_definitions(test_layers PRIVATE CHRONO_CALC_SOURCE_DIR="${PROJECT_SOURCE_DIR}/src")
+target_compile_definitions(test_layers PRIVATE CHRONO_CALC_SOURCE_DIR="${PROJECT_SOURCE_DIR}/src"
+    CHRONO_CALC_THIRD_PARTY_DIR="${PROJECT_SOURCE_DIR}/third_party")
+
+add_subdirectory(engine)

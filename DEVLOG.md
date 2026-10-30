@@ -23,3 +23,12 @@ Append-only. One entry per completed task, newest last.
 - clang-tidy's include check skips Qt's own headers; moc misread a regex literal, so the layer check reads include lines by hand.
 - A fresh review found the layer-check gaps above (fixed) and that the release containers have no clang-tidy: `build-release.sh` 0.0.2 builds with it off.
 - Built and tested in a Debian 12 container: CMake 3.25.1, GCC 12.2, Qt 6.4.2, no warnings, 3 of 3 tests pass. On this computer: GCC 15.2 and Clang 21.1, 3 of 3 on both.
+
+## 2026-10-30: 0.0.3, task 0.2 Engine import
+
+- Copied 53 files of microsoft/calculator `src/CalcManager` (commit `79e1ac5`) unchanged into `third_party/calculator/`, with `LICENSE` and `SOURCE.md`; left out `pch.h`, `UnitConverter`, `CalculatorVector.h` and the Windows build files (D-014).
+- A trial compile showed only two needs: `pch.h`'s Windows headers (replaced by our `shim/pch.h`) and `<cmath>` for `Ratpack/support.cpp` (given by a compiler option). The engine builds with GCC 15, Clang 21 and on Debian 12 (GCC 12).
+- Ported Microsoft's 71 engine tests to Qt Test (RationalTest 9, CalcInputTest 37, CalcEngineTests 4, CalculatorManagerTest 21) with the en-US engine texts (108); all pass with GCC, Clang and on Debian 12 (Qt 6.4). Two helpers ported them; a fresh reviewer compared every check and expected value with Microsoft's originals and found them faithful.
+- Qt 6.4 has no `QTest::setThrowOnFail`: removed; a failed check in a helper still fails the test. clang-tidy's complexity check now ignores macros (every QCOMPARE hides a branch) instead of NOLINT blocks.
+- The layer check also covers `third_party` (no Qt, core, ui or app), proven on two planted faults.
+- Open for 0.3: the engine's `GetString(int)` can store a key to a temporary for an unknown text number (Clang warning); our wrapper must supply every text number.

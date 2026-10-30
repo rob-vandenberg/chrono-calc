@@ -11,14 +11,15 @@
 #include <vector>
 
 // --- Version ------------------------------------------------------------
-// tests/test_layers.cpp 0.0.2
+// tests/test_layers.cpp 0.0.3
 
 // --- Version history ----------------------------------------------------
+// v0.0.3: third_party includes no Qt, core, ui and app
 // v0.0.2: Initial: core includes no Qt, ui and app; ui includes no app; relative includes (../ui/x.h) are resolved first,
 //         every C++ file type is read, and lowercase Qt headers (qstring.h) count as Qt
 
 // Enforces OR-13 with D-011: the layers third_party <- core <- ui <- app. A layer includes only from the layers below it,
-// and core is plain C++ without Qt. Reads every #include of every file in src/.
+// and core and third_party are plain C++ without Qt. Reads every #include of every file in src/ and third_party/.
 
 namespace {
 
@@ -69,11 +70,10 @@ std::string fromSourceFolder(const std::filesystem::path& including, const std::
     return resolved.lexically_relative(std::filesystem::path(CHRONO_CALC_SOURCE_DIR).lexically_normal()).generic_string();
 }
 
-// Every #include in the files of one layer folder (src/<layer>), with file and line
-std::vector<Include> includesOf(const std::string& layer, int& filesFound)
+// Every #include in the files of one layer folder (src/core, third_party, ...), with file and line
+std::vector<Include> includesOf(const std::filesystem::path& folder, int& filesFound)
 {
     std::vector<Include> found;
-    const std::filesystem::path folder = std::filesystem::path(CHRONO_CALC_SOURCE_DIR) / layer;
     if (!std::filesystem::exists(folder)) {
         return found;
     }
@@ -97,10 +97,10 @@ std::vector<Include> includesOf(const std::string& layer, int& filesFound)
 }
 
 // The includes of a layer that name a forbidden target, as "file:line includes target" lines
-QStringList forbiddenIncludes(const std::string& layer, const std::regex& forbidden, int& filesFound)
+QStringList forbiddenIncludes(const std::filesystem::path& folder, const std::regex& forbidden, int& filesFound)
 {
     QStringList faults;
-    for (const Include& include : includesOf(layer, filesFound)) {
+    for (const Include& include : includesOf(folder, filesFound)) {
         if (std::regex_search(include.target, forbidden)) {
             faults << QString::fromStdString(include.file + ":" + std::to_string(include.line) + " includes " + include.target);
         }
@@ -118,7 +118,7 @@ private slots:
     static void coreIncludesNoQtNoUiAndNoApp()
     {
         int filesFound = 0;
-        const QStringList faults = forbiddenIncludes("core", std::regex(R"(^(Q|q[a-z0-9_]*\.h$|ui/|app/))"), filesFound);
+        const QStringList faults = forbiddenIncludes(std::filesystem::path(CHRONO_CALC_SOURCE_DIR) / "core", std::regex(R"(^(Q|q[a-z0-9_]*\.h$|ui/|app/))"), filesFound);
         QVERIFY2(filesFound > 0, "no files found in src/core: the check would prove nothing");
         QVERIFY2(faults.isEmpty(), qPrintable(faults.join(QStringLiteral("\n"))));
     }
@@ -126,8 +126,17 @@ private slots:
     static void uiIncludesNoApp()
     {
         int filesFound = 0;
-        const QStringList faults = forbiddenIncludes("ui", std::regex(R"(^app/)"), filesFound);
+        const QStringList faults = forbiddenIncludes(std::filesystem::path(CHRONO_CALC_SOURCE_DIR) / "ui", std::regex(R"(^app/)"), filesFound);
         QVERIFY2(filesFound > 0, "no files found in src/ui: the check would prove nothing");
+        QVERIFY2(faults.isEmpty(), qPrintable(faults.join(QStringLiteral("\n"))));
+    }
+
+    static void thirdPartyIncludesNoQtNoCoreNoUiAndNoApp()
+    {
+        int filesFound = 0;
+        const QStringList faults
+            = forbiddenIncludes(std::filesystem::path(CHRONO_CALC_THIRD_PARTY_DIR), std::regex(R"(^(Q|q[a-z0-9_]*\.h$|core/|ui/|app/))"), filesFound);
+        QVERIFY2(filesFound > 0, "no files found in third_party: the check would prove nothing");
         QVERIFY2(faults.isEmpty(), qPrintable(faults.join(QStringLiteral("\n"))));
     }
 };

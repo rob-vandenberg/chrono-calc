@@ -84,34 +84,21 @@ Example:
 
 ## RULE 5: END OF EVERY CHANGE
 
-Every response that modifies files ends with a summary of what changed, followed by the push line in its own fenced code block.
+When a job is done (its checks passed and a fresh reviewer checked it), Claude pushes it itself with `./gitpush.sh` (OR-5, changed by the owner on 2026-10-30; before, the owner pushed from a push line).
 
-The exact required format is:
-
-```
-Modified files:
-<list of filenames>
-```
-
-Then, immediately after, on its own with nothing else inside it:
-
-````
 ```
 ./gitpush.sh "<relevant commit message without version number>"
 ```
-````
 
-Without a message (`./gitpush.sh`) it updates the last pushed version; that is for documents only. A file that is not in git (private, git-ignored) gets no push line.
+Without a message (`./gitpush.sh`) it updates the last pushed version; that is for documents only. A file that is not in git (private, git-ignored) is not pushed.
 
 **The message text must not contain shell-special characters.** Never use inside the message: `( ) & | < > ^ % " $ !` and the backtick.
 
 Underscores, hyphens, forward slashes, and single quotes are safe to use.
 
-**The fenced code block contains ONLY the push command — nothing else, no labels, no filenames, no extra text.** The user copies it directly into a terminal; any extra text breaks the command.
+Every response that modifies files ends with a summary of what changed and the files changed, then the version that was pushed and what the push script reported (PASSED, or what failed). A push that fails is an open problem (Rule 20).
 
-The summary of changes (what was changed and why) is written as plain text ABOVE the fenced block, never inside it.
-
-On a Windows computer, the project's Windows hand-over document says how to push. The user pushes with that line. Claude runs it only when the user says "push".
+On a Windows computer, the project's Windows hand-over document says how to push.
 
 ---
 
@@ -306,7 +293,7 @@ A reply that reports work is laid out in this order:
 1. What was done, in a few numbered lines, and the checks that ran.
 2. How the user can check it.
 3. The files changed.
-4. The version line and the push block (Rule 5).
+4. The version that was pushed and the push result (Rule 5).
 5. **Last:** every problem found during the turn and not fixed or not decided (a fault in the program, a failing test, a skipped step, a risk, a decision the user must take), in a quoted block:
 
 > ### ⚠️ Open problems

@@ -1,4 +1,4 @@
-# .clang-tidy 0.0.2
+# .clang-tidy 0.0.3
 #
 # The hard gate on our own code (AGENTS.md 3, D-012): every finding is an error. third_party/ is never checked.
 # Switched off, each for its reason:
@@ -10,6 +10,7 @@
 # Narrowed:
 #   misc-include-cleaner                   skips Qt's own headers: Qt is used through its <QClass> headers, which forward
 #                                          to internal files (qtmetamacros.h, qtestcase.h) that the check would demand
+#   readability-function-cognitive-complexity  ignores macros: every QCOMPARE/QVERIFY hides an if that would count as a branch
 Checks: >
   -*,
   bugprone-*,
@@ -26,5 +27,6 @@ Checks: >
   -cppcoreguidelines-owning-memory
 CheckOptions:
   misc-include-cleaner.IgnoreHeaders: 'qt6/.*'
+  readability-function-cognitive-complexity.IgnoreMacros: true
 WarningsAsErrors: '*'
 HeaderFilterRegex: '.*/src/.*'
