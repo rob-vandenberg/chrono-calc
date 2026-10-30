@@ -1,16 +1,23 @@
 #include <QAction>
 #include <QClipboard>
+#include <QComboBox>
 #include <QCoreApplication>
+#include <QDate>
+#include <QDateEdit>
+#include <QDateTimeEdit>
 #include <QEvent>
 #include <QGuiApplication>
 #include <QKeyEvent>
 #include <QKeySequence>
+#include <QLabel>
+#include <QLineEdit>
 #include <QList>
 #include <QLocale>
 #include <QMenu>
 #include <QMenuBar>
 #include <QObject>
 #include <QPoint>
+#include <QRadioButton>
 #include <QRect>
 #include <QScreen>
 #include <QSettings>
@@ -29,14 +36,20 @@
 #include "ui/viewparts.h"
 
 #include <algorithm>
+#include <cstddef>
 #include <cstdint>
 #include <string>
 #include <memory>
+#include <vector>
 
 // --- Version ------------------------------------------------------------
-// tests/test_mainwindow.cpp 0.5.12
+// tests/test_mainwindow.cpp 0.8.13
 
 // --- Version history ----------------------------------------------------
+// v0.8.13: The Unit conversion panel: beside every view, its sizes, converting, its keys, Tab order, remembered; the Date
+//          calculation panel: beside every view, both modes, Calculate, its keys, Tab order, the focus, remembered; the
+//          Worksheets: beside every view, their boxes and labels, Calculate, the messages, the list's keys, Tab order,
+//          remembered
 // v0.5.12: History (the taller window, the list, its keys, the edit box), Digit grouping, Copy and Paste with the
 //          clipboard, the Edit menu of each view, History and Digit grouping remembered
 // v0.4.11: The Statistics view: its size, the list, the count, the selection buttons, the keyboard focus of the list
@@ -81,6 +94,22 @@ const QMenu* menuOf(const chrono_calc::MainWindow& window, const QString& title)
         }
     }
     return nullptr;
+}
+
+// An item of View > Worksheets
+QAction* worksheetAction(const chrono_calc::MainWindow& window, const QString& text)
+{
+    const QAction* submenu = actionOf(menuOf(window, QStringLiteral("&View")), QStringLiteral("&Worksheets"));
+    return submenu == nullptr || submenu->menu() == nullptr ? nullptr : actionOf(submenu->menu(), text);
+}
+
+// A part of the window by its name. The parts a view or panel change replaces go once the event loop runs
+// (MainWindow::buildView), so they are let go first: a replaced part is never found.
+template <typename Part>
+Part* partOf(const chrono_calc::MainWindow& window, const QString& name)
+{
+    QCoreApplication::sendPostedEvents(nullptr, QEvent::DeferredDelete);
+    return window.findChild<Part*>(name);
 }
 
 // The settings go to a folder of their own that is removed afterwards: the test leaves nothing behind
@@ -396,9 +425,9 @@ private slots:
         QVERIFY(actionOf(view, QStringLiteral("&Programmer"))->isEnabled());
         QVERIFY(actionOf(view, QStringLiteral("St&atistics"))->isEnabled());
         QCOMPARE(actionOf(view, QStringLiteral("St&atistics"))->shortcut(), QKeySequence(QStringLiteral("Alt+4")));
-        for (const QString& greyed : {QStringLiteral("&Unit conversion"), QStringLiteral("&Date calculation")}) {
-            const QAction* action = actionOf(view, greyed);
-            QVERIFY2(action != nullptr && !action->isEnabled(), qPrintable(greyed));
+        for (const QString& panel : {QStringLiteral("&Unit conversion"), QStringLiteral("&Date calculation")}) {
+            const QAction* action = actionOf(view, panel);
+            QVERIFY2(action != nullptr && action->isEnabled() && !action->isChecked(), qPrintable(panel));
         }
         for (const QString& ticked : {QStringLiteral("Histor&y"), QStringLiteral("D&igit grouping")}) {
             const QAction* action = actionOf(view, ticked);
@@ -842,6 +871,532 @@ private slots:
         QVERIFY(window);
         QCOMPARE(window->centralWidget()->size(), QSize(508, 331));
         QVERIFY(actionOf(menuOf(*window, QStringLiteral("&View")), QStringLiteral("&Scientific"))->isChecked());
+    }
+
+    // View > Unit conversion (Ctrl+U): the panel beside every view, the window wider by it (windows7-unitconversion.md
+    // part A lines 1 and 4); Ctrl+U again keeps it; Basic (Ctrl+F4) hides it
+    static void theUnitConversionPanelShowsBesideEveryView()
+    {
+        const auto window = openWindow();
+        QVERIFY(window);
+        QWidget* area = window->centralWidget();
+        QTest::keyClick(area, Qt::Key_U, Qt::ControlModifier);
+        const QWidget* panel = partOf<QWidget>(*window, QStringLiteral("unit.panel"));
+        QVERIFY(panel != nullptr);
+        QCOMPARE(area->size(), QSize(731, 331));
+        QCOMPARE(panel->geometry(), QRect(264, 13, 454, 303));
+        QVERIFY(actionOf(menuOf(*window, QStringLiteral("&View")), QStringLiteral("&Unit conversion"))->isChecked());
+        QTest::keyClick(area, Qt::Key_U, Qt::ControlModifier);
+        QCOMPARE(area->size(), QSize(731, 331));
+        struct Place
+        {
+            Qt::Key key = Qt::Key_unknown;
+            QRect panel;
+            QSize client;
+        };
+        for (const Place& place : {Place{.key = Qt::Key_2, .panel = QRect(508, 13, 454, 303), .client = QSize(975, 331)},
+                                   Place{.key = Qt::Key_3, .panel = QRect(508, 13, 454, 386), .client = QSize(975, 413)},
+                                   Place{.key = Qt::Key_4, .panel = QRect(264, 13, 454, 427), .client = QSize(731, 456)}}) {
+            QTest::keyClick(area, place.key, Qt::AltModifier);
+            const QWidget* shown = partOf<QWidget>(*window, QStringLiteral("unit.panel"));
+            QVERIFY(shown != nullptr);
+            QCOMPARE(shown->geometry(), place.panel);
+            QCOMPARE(area->size(), place.client);
+        }
+        QTest::keyClick(area, Qt::Key_1, Qt::AltModifier);
+        QTest::keyClick(area, Qt::Key_H, Qt::ControlModifier);
+        QCOMPARE(area->size(), QSize(731, 456));
+        QCOMPARE(partOf<QWidget>(*window, QStringLiteral("unit.panel"))->geometry(), QRect(264, 13, 454, 428));
+        QTest::keyClick(area, Qt::Key_H, Qt::ControlModifier);
+        QTest::keyClick(area, Qt::Key_F4, Qt::ControlModifier);
+        QCOMPARE(area->size(), QSize(264, 331));
+        QVERIFY(actionOf(menuOf(*window, QStringLiteral("&View")), QStringLiteral("&Basic"))->isChecked());
+    }
+
+    // The From box converts at every character; refused characters never show; the display stays as it is (part D
+    // lines 1, 2 and 5)
+    static void theUnitConversionPanelConverts()
+    {
+        const auto window = openWindow();
+        QVERIFY(window);
+        QTest::keyClick(window->centralWidget(), Qt::Key_U, Qt::ControlModifier);
+        auto* type = partOf<QComboBox>(*window, QStringLiteral("unit.type"));
+        auto* from = partOf<QComboBox>(*window, QStringLiteral("unit.from"));
+        auto* to = partOf<QComboBox>(*window, QStringLiteral("unit.to"));
+        auto* input = partOf<QLineEdit>(*window, QStringLiteral("unit.input"));
+        const auto* result = partOf<QLineEdit>(*window, QStringLiteral("unit.result"));
+        QVERIFY(type != nullptr && from != nullptr && to != nullptr && input != nullptr && result != nullptr);
+        QCOMPARE(type->currentText(), QStringLiteral("Angle"));
+        QCOMPARE(from->currentText(), QStringLiteral("Degree"));
+        QCOMPARE(to->currentText(), QStringLiteral("Degree"));
+        type->setCurrentIndex(3);
+        QCOMPARE(from->currentText(), QStringLiteral("Angstrom"));
+        QCOMPARE(from->count(), 19);
+        from->setCurrentIndex(from->findText(QStringLiteral("Inch")));
+        to->setCurrentIndex(to->findText(QStringLiteral("Centimeters")));
+        input->setFocus();
+        QTest::keyClicks(input, QStringLiteral("1"));
+        QCOMPARE(result->text(), QStringLiteral("2,54"));
+        QTest::keyClicks(input, QStringLiteral("2a"));
+        QCOMPARE(input->text(), QStringLiteral("12"));
+        QCOMPARE(result->text(), QStringLiteral("30,48"));
+        QTest::keyClicks(input, QStringLiteral("3"));
+        QCOMPARE(result->text(), QStringLiteral("312,42"));
+        QCOMPARE(displayOf(*window)->number(), QStringLiteral("0"));
+        // F9, Enter and Escape in the From box do nothing, and nothing reaches the calculator
+        for (const Qt::Key key : {Qt::Key_F9, Qt::Key_Return, Qt::Key_Escape}) {
+            QTest::keyClick(input, key);
+        }
+        QCOMPARE(input->text(), QStringLiteral("123"));
+        QVERIFY(input->hasFocus());
+        QCOMPARE(displayOf(*window)->number(), QStringLiteral("0"));
+        // A type chosen empties both boxes
+        type->setCurrentIndex(0);
+        QVERIFY(input->text().isEmpty());
+        QVERIFY(result->text().isEmpty());
+    }
+
+    // With a list focused the keys go to the calculator; Up and Down change the unit; Enter and Escape give the focus
+    // back to the calculator (part D line 7); the Tab order is Windows 7's
+    static void theUnitListsPassTheirKeysToTheCalculator()
+    {
+        const auto window = openWindow();
+        QVERIFY(window);
+        QWidget* area = window->centralWidget();
+        QTest::keyClick(area, Qt::Key_U, Qt::ControlModifier);
+        auto* from = partOf<QComboBox>(*window, QStringLiteral("unit.from"));
+        QVERIFY(from != nullptr);
+        from->setFocus();
+        QTest::keyClicks(from, QStringLiteral("78"));
+        QCOMPARE(displayOf(*window)->number(), QStringLiteral("78"));
+        QTest::keyClick(from, Qt::Key_Down);
+        QCOMPARE(from->currentText(), QStringLiteral("Gradian"));
+        QTest::keyClick(from, Qt::Key_Escape);
+        QCOMPARE(displayOf(*window)->number(), QStringLiteral("0"));
+        QVERIFY(area->hasFocus());
+        // Tab from each part reaches the next: From, its unit, To, its unit, the calculator, the type list, From again
+        const std::vector<QWidget*> order{partOf<QWidget>(*window, QStringLiteral("unit.input")), from,
+                                          partOf<QWidget>(*window, QStringLiteral("unit.result")),
+                                          partOf<QWidget>(*window, QStringLiteral("unit.to")), area,
+                                          partOf<QWidget>(*window, QStringLiteral("unit.type")),
+                                          partOf<QWidget>(*window, QStringLiteral("unit.input"))};
+        for (std::size_t index = 0; index + 1 < order.size(); ++index) {
+            order.at(index)->setFocus();
+            QTest::keyClick(order.at(index), Qt::Key_Tab);
+            QVERIFY2(order.at(index + 1)->hasFocus(), qPrintable(QString::number(index)));
+        }
+    }
+
+    // The panel shown is remembered, not its type (part D line 10)
+    static void theWindowOpensWithTheSidePanelItWasClosedWith()
+    {
+        {
+            const auto window = openWindow();
+            QVERIFY(window);
+            QTest::keyClick(window->centralWidget(), Qt::Key_U, Qt::ControlModifier);
+            partOf<QComboBox>(*window, QStringLiteral("unit.type"))->setCurrentIndex(3);
+            window->close();
+        }
+        const auto window = openWindow();
+        QVERIFY(window);
+        QCOMPARE(window->centralWidget()->size(), QSize(731, 331));
+        QCOMPARE(partOf<QComboBox>(*window, QStringLiteral("unit.type"))->currentText(), QStringLiteral("Angle"));
+    }
+
+    // View > Date calculation (Ctrl+E): the panel in the frame of Unit conversion, beside every view; Ctrl+E again keeps
+    // it; the mode list has the keyboard focus (windows7-datecalculation.md part A lines 1 and 4)
+    static void theDateCalculationPanelShowsBesideEveryView()
+    {
+        const auto window = openWindow();
+        QVERIFY(window);
+        QWidget* area = window->centralWidget();
+        QTest::keyClick(area, Qt::Key_E, Qt::ControlModifier);
+        const QWidget* panel = partOf<QWidget>(*window, QStringLiteral("date.panel"));
+        QVERIFY(panel != nullptr);
+        QCOMPARE(area->size(), QSize(731, 331));
+        QCOMPARE(panel->geometry(), QRect(264, 13, 454, 303));
+        QVERIFY(partOf<QWidget>(*window, QStringLiteral("date.mode"))->hasFocus());
+        QVERIFY(actionOf(menuOf(*window, QStringLiteral("&View")), QStringLiteral("&Date calculation"))->isChecked());
+        QTest::keyClick(area, Qt::Key_E, Qt::ControlModifier);
+        QVERIFY(partOf<QWidget>(*window, QStringLiteral("date.panel")) != nullptr);
+        QTest::keyClick(area, Qt::Key_3, Qt::AltModifier);
+        QCOMPARE(partOf<QWidget>(*window, QStringLiteral("date.panel"))->geometry(), QRect(508, 13, 454, 386));
+        QCOMPARE(area->size(), QSize(975, 413));
+        // From Unit conversion to Date calculation and back: one panel at a time
+        QTest::keyClick(area, Qt::Key_U, Qt::ControlModifier);
+        QVERIFY(partOf<QWidget>(*window, QStringLiteral("unit.panel")) != nullptr);
+        QVERIFY(partOf<QWidget>(*window, QStringLiteral("date.panel")) == nullptr);
+        QTest::keyClick(area, Qt::Key_E, Qt::ControlModifier);
+        QVERIFY(partOf<QWidget>(*window, QStringLiteral("unit.panel")) == nullptr);
+        QTest::keyClick(area, Qt::Key_F4, Qt::ControlModifier);
+        QVERIFY(partOf<QWidget>(*window, QStringLiteral("date.panel")) == nullptr);
+        QCOMPARE(area->size(), QSize(508, 413));
+    }
+
+    // Both modes: their parts, Calculate, the results in the regional long date; a changed date empties the results
+    // (parts B, D and E)
+    static void theDateCalculationPanelCalculates()
+    {
+        const auto window = openWindow();
+        QVERIFY(window);
+        QTest::keyClick(window->centralWidget(), Qt::Key_E, Qt::ControlModifier);
+        auto* mode = partOf<QComboBox>(*window, QStringLiteral("date.mode"));
+        auto* from = partOf<QDateEdit>(*window, QStringLiteral("date.difference_from"));
+        auto* to = partOf<QDateEdit>(*window, QStringLiteral("date.difference_to"));
+        const auto* difference = partOf<QLineEdit>(*window, QStringLiteral("date.difference"));
+        const auto* days = partOf<QLineEdit>(*window, QStringLiteral("date.total_days"));
+        auto* calculate = partOf<QWidget>(*window, QStringLiteral("date.calculate"));
+        QVERIFY(mode != nullptr && from != nullptr && to != nullptr && difference != nullptr && days != nullptr && calculate != nullptr);
+        QCOMPARE(mode->count(), 2);
+        QCOMPARE(mode->itemText(0), QStringLiteral("Calculate the difference between two dates"));
+        QCOMPARE(mode->itemText(1), QStringLiteral("Add or subtract days to a specified date"));
+        // Today, or yesterday when midnight passed since the window opened
+        QVERIFY(from->date() == QDate::currentDate() || from->date() == QDate::currentDate().addDays(-1));
+        QCOMPARE(from->minimumDate(), QDate(1601, 1, 1));
+        QCOMPARE(from->maximumDate(), QDate(9999, 12, 31));
+        QVERIFY(from->displayFormat().contains(QStringLiteral("yyyy")));
+        from->setDate(QDate(2026, 1, 15));
+        to->setDate(QDate(2027, 3, 20));
+        QVERIFY(difference->text().isEmpty());
+        QTest::mouseClick(calculate, Qt::LeftButton);
+        QCOMPARE(difference->text(), QStringLiteral("1 year, 2 months, 5 days"));
+        QCOMPARE(days->text(), QStringLiteral("429 days"));
+        to->setDate(QDate(2027, 3, 21));
+        QVERIFY(difference->text().isEmpty());
+        QVERIFY(days->text().isEmpty());
+        QCOMPARE(displayOf(*window)->number(), QStringLiteral("0"));
+
+        mode->setCurrentIndex(1);
+        QVERIFY(!from->isVisible());
+        auto* shiftFrom = partOf<QDateEdit>(*window, QStringLiteral("date.shift_from"));
+        auto* subtract = partOf<QRadioButton>(*window, QStringLiteral("date.subtract"));
+        auto* years = partOf<QLineEdit>(*window, QStringLiteral("date.years"));
+        const auto* shifted = partOf<QLineEdit>(*window, QStringLiteral("date.shifted"));
+        QVERIFY(shiftFrom != nullptr && subtract != nullptr && years != nullptr && shifted != nullptr);
+        QVERIFY(shiftFrom->isVisible());
+        QCOMPARE(years->text(), QStringLiteral("0"));
+        shiftFrom->setDate(QDate(2026, 3, 31));
+        subtract->click();
+        years->setFocus();
+        years->selectAll();
+        QTest::keyClicks(years, QStringLiteral("1"));
+        QTest::mouseClick(calculate, Qt::LeftButton);
+        QCOMPARE(shifted->text(), QLocale().toString(QDate(2025, 3, 31), QLocale::LongFormat));
+        // The other mode kept its result
+        mode->setCurrentIndex(0);
+        QVERIFY(from->isVisible());
+        QCOMPARE(from->date(), QDate(2026, 1, 15));
+        QVERIFY(difference->text().isEmpty());
+    }
+
+    // A number box keeps its keys: digits at most three, Up and Down step it, Enter calculates and moves the keyboard
+    // focus to the result; nothing reaches the calculator (part E line 1, part F line 2)
+    static void theNumberBoxesKeepTheirKeys()
+    {
+        const auto window = openWindow();
+        QVERIFY(window);
+        QTest::keyClick(window->centralWidget(), Qt::Key_E, Qt::ControlModifier);
+        partOf<QComboBox>(*window, QStringLiteral("date.mode"))->setCurrentIndex(1);
+        partOf<QDateEdit>(*window, QStringLiteral("date.shift_from"))->setDate(QDate(2026, 10, 30));
+        auto* days = partOf<QLineEdit>(*window, QStringLiteral("date.days"));
+        const auto* shifted = partOf<QLineEdit>(*window, QStringLiteral("date.shifted"));
+        QVERIFY(days != nullptr && shifted != nullptr);
+        days->setFocus();
+        days->selectAll();
+        QTest::keyClicks(days, QStringLiteral("+5a*99"));
+        QCOMPARE(days->text(), QStringLiteral("599"));
+        QTest::keyClick(days, Qt::Key_Up);
+        QCOMPARE(days->text(), QStringLiteral("600"));
+        QTest::keyClick(days, Qt::Key_Down);
+        QTest::keyClick(days, Qt::Key_Down);
+        QCOMPARE(days->text(), QStringLiteral("598"));
+        QTest::keyClick(days, Qt::Key_Escape);
+        QVERIFY(days->hasFocus());
+        QTest::keyClick(days, Qt::Key_Return);
+        QCOMPARE(shifted->text(), QLocale().toString(QDate(2028, 6, 19), QLocale::LongFormat));
+        QVERIFY(shifted->hasFocus());
+        QCOMPARE(displayOf(*window)->number(), QStringLiteral("0"));
+        QCOMPARE(displayOf(*window)->expression(), QString());
+    }
+
+    // The arrows beside a number box: the upper half steps up, the lower half down, and they never take the focus
+    static void theNumberArrowsStep()
+    {
+        const auto window = openWindow();
+        QVERIFY(window);
+        QTest::keyClick(window->centralWidget(), Qt::Key_E, Qt::ControlModifier);
+        partOf<QComboBox>(*window, QStringLiteral("date.mode"))->setCurrentIndex(1);
+        const auto* years = partOf<QLineEdit>(*window, QStringLiteral("date.years"));
+        QVERIFY(years != nullptr);
+        // The arrows of Year(s) at 120, 120, 18, 28 in the panel, 45 below the part's top (75)
+        QWidget* arrows = partOf<QWidget>(*window, QStringLiteral("date.panel"))->childAt(QPoint(128, 125));
+        QVERIFY(arrows != nullptr);
+        QTest::mouseClick(arrows, Qt::LeftButton, Qt::NoModifier, QPoint(9, 4));
+        QCOMPARE(years->text(), QStringLiteral("1"));
+        QTest::mouseClick(arrows, Qt::LeftButton, Qt::NoModifier, QPoint(9, 24));
+        QTest::mouseClick(arrows, Qt::LeftButton, Qt::NoModifier, QPoint(9, 24));
+        QCOMPARE(years->text(), QStringLiteral("999"));
+        QVERIFY(!arrows->hasFocus());
+    }
+
+    // Enter in a date box takes a digit that still waits for its second one before it calculates (found in review); a
+    // two-digit day, as in the reference's regional settings, so that the 3 waits whatever the test computer's locale
+    static void enterTakesTheWaitingDigit()
+    {
+        const auto window = openWindow();
+        QVERIFY(window);
+        QTest::keyClick(window->centralWidget(), Qt::Key_E, Qt::ControlModifier);
+        auto* from = partOf<QDateEdit>(*window, QStringLiteral("date.difference_from"));
+        auto* to = partOf<QDateEdit>(*window, QStringLiteral("date.difference_to"));
+        QVERIFY(from != nullptr && to != nullptr);
+        from->setDisplayFormat(QStringLiteral("dd/MM/yyyy"));
+        from->setDate(QDate(2026, 4, 1));
+        to->setDate(QDate(2026, 4, 20));
+        from->setFocus();
+        from->setSelectedSection(QDateTimeEdit::DaySection);
+        QTest::keyClick(from, Qt::Key_3);
+        QTest::keyClick(from, Qt::Key_Return);
+        QCOMPARE(from->date(), QDate(2026, 4, 3));
+        QCOMPARE(partOf<QLineEdit>(*window, QStringLiteral("date.total_days"))->text(), QStringLiteral("17 days"));
+        QVERIFY(partOf<QWidget>(*window, QStringLiteral("date.difference"))->hasFocus());
+    }
+
+    // Windows 7's Tab order in both modes (part F line 1); Enter in a date box calculates and moves the keyboard focus
+    // to the first result
+    static void theDateCalculationTabOrderIsWindows7s()
+    {
+        const auto window = openWindow();
+        QVERIFY(window);
+        QWidget* area = window->centralWidget();
+        QTest::keyClick(area, Qt::Key_E, Qt::ControlModifier);
+        const auto part = [&window](const char* name) { return partOf<QWidget>(*window, QString::fromUtf8(name)); };
+        const std::vector<QWidget*> differenceOrder{part("date.difference_from"), part("date.difference_to"), part("date.difference"),
+                                                    part("date.total_days"), part("date.calculate"), area, part("date.mode")};
+        for (std::size_t index = 0; index + 1 < differenceOrder.size(); ++index) {
+            differenceOrder.at(index)->setFocus();
+            QTest::keyClick(differenceOrder.at(index), Qt::Key_Tab);
+            QVERIFY2(differenceOrder.at(index + 1)->hasFocus(), qPrintable(QString::number(index)));
+        }
+        QTest::keyClick(part("date.mode"), Qt::Key_Tab);
+        QVERIFY(part("date.difference_from")->hasFocus());
+        QTest::keyClick(part("date.difference_from"), Qt::Key_Return);
+        QVERIFY(part("date.difference")->hasFocus());
+        QCOMPARE(qobject_cast<QLineEdit*>(part("date.difference"))->text(), QStringLiteral("Same dates"));
+        // Right on Add chooses Subtract
+        qobject_cast<QComboBox*>(part("date.mode"))->setCurrentIndex(1);
+        part("date.add")->setFocus();
+        QTest::keyClick(part("date.add"), Qt::Key_Right);
+        QVERIFY(qobject_cast<QRadioButton*>(part("date.subtract"))->isChecked());
+        QVERIFY(part("date.subtract")->hasFocus());
+
+        const std::vector<QWidget*> shiftOrder{part("date.shift_from"), part("date.subtract"), part("date.years"), part("date.months"),
+                                               part("date.days"), part("date.shifted"), part("date.calculate"), area};
+        for (std::size_t index = 0; index + 1 < shiftOrder.size(); ++index) {
+            shiftOrder.at(index)->setFocus();
+            QTest::keyClick(shiftOrder.at(index), Qt::Key_Tab);
+            QVERIFY2(shiftOrder.at(index + 1)->hasFocus(), qPrintable(QString::number(index)));
+        }
+    }
+
+    // The panel shown is remembered, not its dates or mode (part G line 2)
+    static void theWindowOpensWithTheDateCalculationPanel()
+    {
+        {
+            const auto window = openWindow();
+            QVERIFY(window);
+            QTest::keyClick(window->centralWidget(), Qt::Key_E, Qt::ControlModifier);
+            partOf<QComboBox>(*window, QStringLiteral("date.mode"))->setCurrentIndex(1);
+            window->close();
+        }
+        const auto window = openWindow();
+        QVERIFY(window);
+        QCOMPARE(window->centralWidget()->size(), QSize(731, 331));
+        QCOMPARE(partOf<QComboBox>(*window, QStringLiteral("date.mode"))->currentIndex(), 0);
+    }
+
+    // windows7-worksheets.md part A: the menu items without a dot, the panel beside every view, the boxes per worksheet
+    static void theWorksheetsShowBesideEveryView()
+    {
+        const auto window = openWindow();
+        QVERIFY(window);
+        QWidget* area = window->centralWidget();
+        QAction* mortgage = worksheetAction(*window, QStringLiteral("&Mortgage"));
+        QVERIFY(mortgage != nullptr && mortgage->isEnabled() && !mortgage->isCheckable());
+        for (const char* text : {"&Vehicle lease", "&Fuel economy (mpg)", "F&uel economy (L/100 km)"}) {
+            QVERIFY(worksheetAction(*window, QString::fromUtf8(text)) != nullptr);
+        }
+        mortgage->trigger();
+        const QWidget* panel = partOf<QWidget>(*window, QStringLiteral("worksheet.panel"));
+        QVERIFY(panel != nullptr);
+        QCOMPARE(area->size(), QSize(731, 331));
+        QCOMPARE(panel->geometry(), QRect(264, 13, 454, 303));
+        QVERIFY(partOf<QWidget>(*window, QStringLiteral("worksheet.list"))->hasFocus());
+        const QMenu* view = menuOf(*window, QStringLiteral("&View"));
+        for (const char* text : {"&Basic", "&Unit conversion", "&Date calculation"}) {
+            QVERIFY(!actionOf(view, QString::fromUtf8(text))->isChecked());
+        }
+        QCOMPARE(partOf<QWidget>(*window, QStringLiteral("worksheet.box.0"))->geometry(), QRect(225, 75, 217, 27));
+        QCOMPARE(partOf<QWidget>(*window, QStringLiteral("worksheet.box.3"))->geometry(), QRect(225, 169, 217, 27));
+        QVERIFY(partOf<QWidget>(*window, QStringLiteral("worksheet.box.4")) == nullptr);
+        QCOMPARE(partOf<QWidget>(*window, QStringLiteral("worksheet.calculate"))->geometry(), QRect(12, 263, 97, 28));
+        QCOMPARE(partOf<QWidget>(*window, QStringLiteral("worksheet.result"))->geometry(), QRect(225, 265, 217, 27));
+        QTest::keyClick(area, Qt::Key_3, Qt::AltModifier);
+        QCOMPARE(partOf<QWidget>(*window, QStringLiteral("worksheet.panel"))->geometry(), QRect(508, 13, 454, 386));
+        QCOMPARE(area->size(), QSize(975, 413));
+        worksheetAction(*window, QStringLiteral("&Vehicle lease"))->trigger();
+        QVERIFY(partOf<QWidget>(*window, QStringLiteral("worksheet.box.4")) != nullptr);
+        worksheetAction(*window, QStringLiteral("&Fuel economy (mpg)"))->trigger();
+        QVERIFY(partOf<QWidget>(*window, QStringLiteral("worksheet.box.1")) != nullptr);
+        QVERIFY(partOf<QWidget>(*window, QStringLiteral("worksheet.box.2")) == nullptr);
+        QTest::keyClick(area, Qt::Key_F4, Qt::ControlModifier);
+        QVERIFY(partOf<QWidget>(*window, QStringLiteral("worksheet.panel")) == nullptr);
+        QVERIFY(actionOf(view, QStringLiteral("&Basic"))->isChecked());
+        QCOMPARE(area->size(), QSize(508, 413));
+    }
+
+    // Part B lines 1 to 4: the labels follow the value chosen, Calculate and Enter, the focus, the messages
+    static void theWorksheetCalculates()
+    {
+        const auto window = openWindow();
+        QVERIFY(window);
+        worksheetAction(*window, QStringLiteral("&Mortgage"))->trigger();
+        auto* list = partOf<QComboBox>(*window, QStringLiteral("worksheet.list"));
+        auto* result = partOf<QLineEdit>(*window, QStringLiteral("worksheet.result"));
+        auto* calculate = partOf<QWidget>(*window, QStringLiteral("worksheet.calculate"));
+        QVERIFY(list != nullptr && result != nullptr && calculate != nullptr);
+        QCOMPARE(list->count(), 4);
+        QCOMPARE(list->currentText(), QStringLiteral("Monthly payment"));
+        const auto box = [&window](int index) { return partOf<QLineEdit>(*window, QStringLiteral("worksheet.box.%1").arg(index)); };
+        QCOMPARE(box(0)->placeholderText(), QStringLiteral("Enter value"));
+        const QStringList typed{QStringLiteral("250000"), QStringLiteral("50000"), QStringLiteral("30"), QStringLiteral("4,5")};
+        for (int index = 0; index < typed.size(); ++index) {
+            box(index)->setFocus();
+            QTest::keyClicks(box(index), typed.at(index));
+        }
+        QCOMPARE(displayOf(*window)->number(), QStringLiteral("0"));
+        QTest::mouseClick(calculate, Qt::LeftButton);
+        QCOMPARE(result->text(), QStringLiteral("1013,370619651761"));
+        QVERIFY(result->hasFocus());
+        // Term (years): the labels move up, the old result becomes the last box
+        list->setCurrentIndex(3);
+        const auto label = [&window](int index) {
+            return partOf<QLabel>(*window, QStringLiteral("worksheet.label.%1").arg(index))->text();
+        };
+        QCOMPARE(label(2), QStringLiteral("Interest rate (%)"));
+        QCOMPARE(label(3), QStringLiteral("Monthly payment"));
+        QCOMPARE(box(3)->text(), QStringLiteral("1013,370619651761"));
+        QCOMPARE(result->text(), QStringLiteral("30"));
+        // Enter in a box calculates; an empty box: the message, the focus there, the result emptied
+        box(1)->setFocus();
+        box(1)->selectAll();
+        QTest::keyClick(box(1), Qt::Key_Delete);
+        QTest::keyClick(box(1), Qt::Key_Return);
+        QVERIFY(box(1)->hasFocus());
+        QVERIFY(result->text().isEmpty());
+        const auto* balloon = partOf<QWidget>(*window, QStringLiteral("worksheet.balloon"));
+        QVERIFY(balloon != nullptr && balloon->isVisible());
+        // Typing keeps the balloon; a valid text calculates and the balloon goes
+        QTest::keyClicks(box(1), QStringLiteral("50000"));
+        QVERIFY(balloon->isVisible());
+        QTest::keyClick(box(1), Qt::Key_Return);
+        QCOMPARE(result->text(), QStringLiteral("30,00000000000002"));
+        QVERIFY(!balloon->isVisible());
+        // A text that is not valid keeps the result
+        box(2)->setFocus();
+        box(2)->selectAll();
+        QTest::keyClicks(box(2), QStringLiteral("-5"));
+        QTest::keyClick(box(2), Qt::Key_Return);
+        QCOMPARE(result->text(), QStringLiteral("30,00000000000002"));
+        QVERIFY(box(2)->hasFocus() && balloon->isVisible());
+        QTest::keyClick(box(2), Qt::Key_Right);
+        QVERIFY(!balloon->isVisible());
+        for (const Qt::Key key : {Qt::Key_Left, Qt::Key_Home, Qt::Key_End}) {
+            QTest::keyClick(box(2), Qt::Key_Return);
+            QVERIFY(balloon->isVisible());
+            QTest::keyClick(box(2), key);
+            QVERIFY(!balloon->isVisible());
+        }
+        // The balloon does not follow a moved window: it goes
+        QTest::keyClick(box(2), Qt::Key_Return);
+        QVERIFY(balloon->isVisible());
+        window->move(window->pos() + QPoint(40, 30));
+        QTRY_VERIFY(!balloon->isVisible());
+        // A 26th typed character is refused; a pasted text is filtered first, then cut to 25 characters
+        box(0)->setFocus();
+        box(0)->selectAll();
+        QTest::keyClicks(box(0), QStringLiteral("1234567890123456789012345"));
+        QTest::keyClick(box(0), Qt::Key_Home);
+        QTest::keyClick(box(0), Qt::Key_9);
+        QCOMPARE(box(0)->text(), QStringLiteral("1234567890123456789012345"));
+        box(0)->clear();
+        QTest::keyClicks(box(0), QStringLiteral("12345678901234567890"));
+        QGuiApplication::clipboard()->setText(QStringLiteral("1 234 5"));
+        box(0)->paste();
+        QCOMPARE(box(0)->text(), QStringLiteral("1234567890123456789012345"));
+        // Another value chosen takes the balloon away; Escape on the list gives the calculator the keyboard focus
+        QTest::keyClick(box(2), Qt::Key_Return);
+        QVERIFY(balloon->isVisible());
+        list->setCurrentIndex(1);
+        QVERIFY(!balloon->isVisible());
+        list->setFocus();
+        QTest::keyClick(list, Qt::Key_Escape);
+        QVERIFY(window->centralWidget()->hasFocus());
+    }
+
+    // Part F line 2: the list keeps the keys from the calculator; Up and Down change the value, Enter calculates
+    static void theWorksheetListKeepsItsKeys()
+    {
+        const auto window = openWindow();
+        QVERIFY(window);
+        worksheetAction(*window, QStringLiteral("&Fuel economy (mpg)"))->trigger();
+        auto* list = partOf<QComboBox>(*window, QStringLiteral("worksheet.list"));
+        QVERIFY(list != nullptr && list->hasFocus());
+        QTest::keyClick(list, Qt::Key_7);
+        QTest::keyClick(list, Qt::Key_Plus);
+        QCOMPARE(displayOf(*window)->number(), QStringLiteral("0"));
+        QCOMPARE(list->currentText(), QStringLiteral("Fuel economy (mpg)"));
+        QTest::keyClick(list, Qt::Key_Down);
+        QCOMPARE(list->currentText(), QStringLiteral("Fuel used (gallons)"));
+        QTest::keyClick(list, Qt::Key_Return);
+        QVERIFY(partOf<QWidget>(*window, QStringLiteral("worksheet.box.0"))->hasFocus());
+        QVERIFY(partOf<QWidget>(*window, QStringLiteral("worksheet.balloon"))->isVisible());
+    }
+
+    // Part F line 1: the boxes, Calculate, the result, the calculator, the list, the first box
+    static void theWorksheetTabOrderIsWindows7s()
+    {
+        const auto window = openWindow();
+        QVERIFY(window);
+        QWidget* area = window->centralWidget();
+        worksheetAction(*window, QStringLiteral("&Mortgage"))->trigger();
+        const auto part = [&window](const QString& name) { return partOf<QWidget>(*window, name); };
+        const std::vector<QWidget*> order{part(QStringLiteral("worksheet.box.0")), part(QStringLiteral("worksheet.box.1")),
+                                          part(QStringLiteral("worksheet.box.2")), part(QStringLiteral("worksheet.box.3")),
+                                          part(QStringLiteral("worksheet.calculate")), part(QStringLiteral("worksheet.result")), area,
+                                          part(QStringLiteral("worksheet.list")), part(QStringLiteral("worksheet.box.0"))};
+        for (std::size_t index = 0; index + 1 < order.size(); ++index) {
+            order.at(index)->setFocus();
+            QTest::keyClick(order.at(index), Qt::Key_Tab);
+            QVERIFY2(order.at(index + 1)->hasFocus(), qPrintable(QString::number(index)));
+        }
+    }
+
+    // The worksheet shown is remembered, not its boxes (part B lines 6 and 7)
+    static void theWindowOpensWithTheWorksheet()
+    {
+        {
+            const auto window = openWindow();
+            QVERIFY(window);
+            worksheetAction(*window, QStringLiteral("&Vehicle lease"))->trigger();
+            QTest::keyClicks(partOf<QLineEdit>(*window, QStringLiteral("worksheet.box.0")), QStringLiteral("5"));
+            window->close();
+        }
+        const auto window = openWindow();
+        QVERIFY(window);
+        QCOMPARE(window->centralWidget()->size(), QSize(731, 331));
+        QVERIFY(partOf<QWidget>(*window, QStringLiteral("worksheet.box.4")) != nullptr);
+        QVERIFY(partOf<QLineEdit>(*window, QStringLiteral("worksheet.box.0"))->text().isEmpty());
+        QTest::keyClick(window->centralWidget(), Qt::Key_F4, Qt::ControlModifier);
     }
 
     // View > Basic changes nothing on the display

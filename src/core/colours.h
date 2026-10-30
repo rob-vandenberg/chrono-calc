@@ -3,9 +3,11 @@
 #include <cstdint>
 
 // --- Version ------------------------------------------------------------
-// src/core/colours.h 0.5.12
+// src/core/colours.h 0.8.13
 
 // --- Version history ----------------------------------------------------
+// v0.8.13: The side panel and the Unit conversion panel's labels, lists and boxes; the Date calculation panel's date
+//          boxes and Calculate button; the Worksheets' hint in an empty box and their message balloon
 // v0.5.12: The edit box of History and the Statistics list
 // v0.4.11: The Statistics view's list, count and selection buttons
 // v0.3.8: The flat face of A to F, the bit display; the choice colours serve angle units, bases and word sizes
@@ -108,6 +110,30 @@ inline constexpr Colour arrowGlyph{.red = 0x1E, .green = 0x39, .blue = 0x5B};
 // text (not measured: Windows 7 draws it with the system's own colours), the selected text in the list's blue
 inline constexpr Colour editBoxFace{.red = 0xFF, .green = 0xFF, .blue = 0xFF};
 inline constexpr Colour editBoxText{.red = 0x00, .green = 0x00, .blue = 0x00};
+// The side panel beside the calculator (windows7-unitconversion.md part A line 3): flat white inside a thin blue-grey
+// frame, dark blue labels; its lists with a light grey face, a grey edge and a dark arrow; the boxes white (From) or
+// light grey (To, read-only) with a grey edge, blue while the box has the keyboard focus, black text
+inline constexpr Colour panelFace{.red = 0xFF, .green = 0xFF, .blue = 0xFF};
+inline constexpr Colour panelFrame{.red = 0x88, .green = 0x9A, .blue = 0xAD};
+inline constexpr Colour panelLabel{.red = 0x1E, .green = 0x39, .blue = 0x5B};
+inline constexpr Colour panelListFace{.red = 0xE1, .green = 0xE1, .blue = 0xE1};
+inline constexpr Colour panelListEdge{.red = 0xAD, .green = 0xAD, .blue = 0xAD};
+inline constexpr Colour panelListArrow{.red = 0x56, .green = 0x56, .blue = 0x56};
+inline constexpr Colour panelBoxFace{.red = 0xFF, .green = 0xFF, .blue = 0xFF};
+inline constexpr Colour panelReadOnlyFace{.red = 0xF0, .green = 0xF0, .blue = 0xF0};
+inline constexpr Colour panelBoxEdge{.red = 0x7A, .green = 0x7A, .blue = 0x7A};
+inline constexpr Colour panelBoxFocusEdge{.red = 0x00, .green = 0x78, .blue = 0xD7};
+inline constexpr Colour panelText{.red = 0x00, .green = 0x00, .blue = 0x00};
+// The Date calculation panel (windows7-datecalculation.md part A line 3): the date boxes white with the boxes' grey edge
+// and a blue-grey arrow; the Calculate button light grey with the blue edge of the button Enter presses
+inline constexpr Colour panelDateArrow{.red = 0x4D, .green = 0x61, .blue = 0x85};
+inline constexpr Colour panelButtonFace{.red = 0xE1, .green = 0xE1, .blue = 0xE1};
+inline constexpr Colour panelButtonEdge{.red = 0x00, .green = 0x78, .blue = 0xD7};
+// The Worksheets (windows7-worksheets.md part A line 3): the grey hint "Enter value" in an empty box, and the balloon of
+// a message, white with a grey edge and black text (our own, not measured)
+inline constexpr Colour panelHint{.red = 0x6D, .green = 0x6D, .blue = 0x6D};
+inline constexpr Colour panelBalloonFace{.red = 0xFF, .green = 0xFF, .blue = 0xFF};
+inline constexpr Colour panelBalloonEdge{.red = 0x76, .green = 0x76, .blue = 0x76};
 // A button under the mouse: a warm golden glow
 inline constexpr Colour buttonHoverBorder{.red = 0xC2, .green = 0x9B, .blue = 0x45};
 inline constexpr Colour buttonHoverTop{.red = 0xFF, .green = 0xF4, .blue = 0xD4};

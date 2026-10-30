@@ -1,9 +1,13 @@
 #pragma once
 
 #include "core/commands.h"
+#include "core/datecalculation.h"
+#include "core/datecalculator.h"
 #include "core/enginetexts.h"
 #include "core/historyedit.h"
+#include "core/unitconverter.h"
 #include "core/view.h"
+#include "core/worksheetcalculator.h"
 
 #include "CalcManager/CalculatorHistory.h"
 #include "Header Files/CalcEngine.h"
@@ -18,9 +22,11 @@
 #include <vector>
 
 // --- Version ------------------------------------------------------------
-// src/core/calculator.h 0.5.12
+// src/core/calculator.h 0.8.13
 
 // --- Version history ----------------------------------------------------
+// v0.8.13: The side panel beside the calculator (View > Basic, Unit conversion, Date calculation), the Unit conversion
+//          panel (D-025), the Date calculation panel (D-026) and the Worksheets (D-027)
 // v0.5.12: History (one per view, from the engine; choosing an entry, Copy history, Clear, Edit), Digit grouping,
 //          Copy and Paste (D-024)
 // v0.4.11: The Statistics view: a fourth engine (16 digits, as Windows 7), the list of values with its selection, Add,
@@ -114,6 +120,15 @@ public:
     // when the command leaves the clipboard as it is (Copy history of an empty history). Lines end with "\n".
     [[nodiscard]] std::optional<std::wstring> takeCopiedText();
 
+    // The panel beside the calculator: Basic (none) or one of the side panels; kept over a view change (Windows 7)
+    [[nodiscard]] SidePanel sidePanel() const;
+    // The Unit conversion panel: its type, units, From text and To result; kept while another panel shows
+    [[nodiscard]] const UnitConverter& unitConverter() const;
+    // The Date calculation panel: its mode, dates, numbers and results; kept while another panel shows
+    [[nodiscard]] const DateCalculator& dateCalculator() const;
+    // The four Worksheets: each one's chosen value, its texts and its last message; kept while another panel shows
+    [[nodiscard]] const WorksheetCalculator& worksheetCalculator() const;
+
 private:
     class Display;
 
@@ -135,6 +150,9 @@ private:
     void runStandard(std::uintptr_t opCode);
     [[nodiscard]] static bool isAvailable(View view, NumberBase base, const CommandTarget& target);
     void runHistoryCommand(const CommandTarget& target, std::wstring_view text);
+    void runUnitCommand(const CommandTarget& target, std::wstring_view text);
+    // The To box of the Unit conversion panel calculated again from the From box
+    void convertUnits();
     // The commands a pasted text gives, as its characters typed one after the other (Windows 7)
     [[nodiscard]] std::vector<std::string_view> pasteCommands(std::wstring_view text) const;
     std::size_t pasteCharacter(std::wstring_view text, std::vector<std::string_view>& commands, bool& startsSign) const;
@@ -240,6 +258,12 @@ private:
     bool m_afterEquals = false;
     // The result of the last =, while no operator came after it: a percent then takes it as its base
     std::optional<CalcEngine::Rational> m_result;
+
+    SidePanel m_sidePanel = SidePanel::Basic;
+    UnitConverter m_unitConverter{L'.'};
+    // Every date of the panel starts at today (windows7-datecalculation.md part C line 1)
+    DateCalculator m_dateCalculator{today()};
+    WorksheetCalculator m_worksheetCalculator{L'.'};
 };
 
 }  // namespace chrono_calc

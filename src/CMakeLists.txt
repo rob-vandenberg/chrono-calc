@@ -1,7 +1,10 @@
 # --- Version ------------------------------------------------------------
-# src/CMakeLists.txt 0.5.12
+# src/CMakeLists.txt 0.8.13
 
 # --- Version history ----------------------------------------------------
+# v0.8.13: core/unitconversion (the units), core/unitconverter (the panel), ui/sidepanels (the panels beside the calculator);
+#          core/calendar, core/datecalculation, core/datecalculator (the Date calculation panel); core/worksheets,
+#          core/worksheetcalculator (the Worksheets)
 # v0.5.12: core/historyedit (reads an edited history entry)
 # v0.4.11: core/statistics (the statistic functions), ui/statisticsparts (the list and its selection buttons)
 # v0.3.10: ui/keyboardlayouts with XKB, xcb and Wayland (which layout a key comes from)
@@ -13,7 +16,8 @@
 
 # core: plain C++, no Qt (D-011)
 add_library(chrono_calc_core STATIC core/version.cpp core/enginetexts.cpp core/commands.cpp core/calculator.cpp core/keys.cpp
-    core/statistics.cpp core/historyedit.cpp
+    core/statistics.cpp core/historyedit.cpp core/unitconversion.cpp core/unitconverter.cpp
+    core/calendar.cpp core/datecalculation.cpp core/datecalculator.cpp core/worksheets.cpp core/worksheetcalculator.cpp
     core/menus.cpp core/layout.cpp)
 target_include_directories(chrono_calc_core PUBLIC ${CMAKE_CURRENT_SOURCE_DIR})
 target_link_libraries(chrono_calc_core PUBLIC chrono_calc_engine)
@@ -23,7 +27,7 @@ chrono_calc_strict(chrono_calc_core)
 # ui: Qt Widgets, on top of core
 add_library(chrono_calc_ui STATIC ui/mainwindow.cpp ui/mainwindow.h ui/calcbutton.cpp ui/calcbutton.h
     ui/displaypanel.cpp ui/displaypanel.h ui/look.cpp ui/look.h ui/fonts.cpp ui/fonts.h ui/viewparts.cpp ui/viewparts.h
-    ui/keyboardlayouts.cpp ui/keyboardlayouts.h ui/statisticsparts.cpp ui/statisticsparts.h)
+    ui/keyboardlayouts.cpp ui/keyboardlayouts.h ui/statisticsparts.cpp ui/statisticsparts.h ui/sidepanels.cpp ui/sidepanels.h)
 set_target_properties(chrono_calc_ui PROPERTIES AUTOMOC ON)
 target_link_libraries(chrono_calc_ui PUBLIC chrono_calc_core Qt6::Widgets)
 # The keyboard layouts of Linux (ui/keyboardlayouts): XKB, and the X11 and Wayland connections that give them

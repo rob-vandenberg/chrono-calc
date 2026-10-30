@@ -2,9 +2,11 @@
 
 #include <QAction>
 #include <QActionGroup>
+#include <QApplication>
 #include <QChar>
 #include <QClipboard>
 #include <QCloseEvent>
+#include <QDate>
 #include <QGuiApplication>
 #include <QKeyEvent>
 #include <QKeySequence>
@@ -36,13 +38,16 @@
 #include "core/menus.h"
 #include "core/layout.h"
 #include "core/view.h"
+#include "core/worksheets.h"
 #include "ui/calcbutton.h"
 #include "ui/displaypanel.h"
 #include "ui/keyboardlayouts.h"
 #include "ui/look.h"
+#include "ui/sidepanels.h"
 #include "ui/statisticsparts.h"
 #include "ui/viewparts.h"
 
+#include <array>
 #include <cstddef>
 #include <cstdint>
 #include <map>
@@ -52,9 +57,12 @@
 #include <vector>
 
 // --- Version ------------------------------------------------------------
-// src/ui/mainwindow.cpp 0.5.12
+// src/ui/mainwindow.cpp 0.8.13
 
 // --- Version history ----------------------------------------------------
+// v0.8.13: The side panel beside every view (View > Basic, Unit conversion, Date calculation, Worksheets), remembered;
+//          the Unit conversion panel (D-025), the Date calculation panel (D-026) and the Worksheets (D-027) with
+//          Windows 7's keys and Tab order
 // v0.5.12: History (the list in a taller display, the edit box), Digit grouping, Copy and Paste with the clipboard,
 //          the Edit menu of each view, History and Digit grouping remembered (D-024)
 // v0.4.11: The Statistics view: its size, the list of values with its selection buttons, the count (D-023)
@@ -76,6 +84,22 @@ const QString viewKey = QStringLiteral("window/view");
 // Windows 7 keeps History shown (ShowHistory) and Digit grouping (UseSep) as well (windows7-history.md part H)
 const QString historyKey = QStringLiteral("window/history");
 const QString groupingKey = QStringLiteral("window/digitGrouping");
+// Windows 7 keeps the side panel shown (UnitConv, DateTime, Templates), not the panel's choices; the name kept is that
+// of its command without "view." ("unit_conversion" for "view.unit_conversion")
+const QString sidePanelKey = QStringLiteral("window/sidePanel");
+const QString viewPrefix = QStringLiteral("view.");
+
+// The name a side panel is kept under: its command's id without "view."; empty for Basic
+QString sidePanelName(SidePanel panel)
+{
+    for (const std::string_view commandId : commandIds()) {
+        const std::optional<CommandTarget> target = findCommand(commandId);
+        if (panel != SidePanel::Basic && target && target->kind == CommandKind::ViewSidePanel && target->panel == panel) {
+            return QString::fromUtf8(commandId.data(), static_cast<qsizetype>(commandId.size())).mid(viewPrefix.size());
+        }
+    }
+    return {};
+}
 
 const QString scientificName = QStringLiteral("scientific");
 const QString programmerName = QStringLiteral("programmer");
@@ -256,6 +280,11 @@ MainWindow::MainWindow(const Separators& separators, QWidget* parent)
     } else if (savedView == statisticsName) {
         m_calculator.run("view.statistics");
     }
+    const QString savedPanel = settings.value(sidePanelKey).toString();
+    if (const std::optional<CommandTarget> panel = findCommand((viewPrefix + savedPanel).toStdString());
+        !savedPanel.isEmpty() && panel && panel->kind == CommandKind::ViewSidePanel) {
+        m_calculator.run((viewPrefix + savedPanel).toStdString());
+    }
     buildView(m_calculator.view());
     buildEditMenu();
     connect(QGuiApplication::clipboard(), &QClipboard::dataChanged, this, [this] { updatePaste(); });
@@ -374,6 +403,10 @@ void MainWindow::addMenuEntry(QMenu* menu, const MenuEntry& entry, std::map<int,
             action->setData(fromView(commandId));
             m_viewActions.push_back(action);
         }
+        if (const std::optional<CommandTarget> target = findCommand(commandId); target && target->kind == CommandKind::ViewSidePanel) {
+            action->setData(fromView(commandId));
+            m_panelActions.push_back(action);
+        }
     }
 }
 
@@ -419,11 +452,24 @@ void MainWindow::buildView(View view)
     }
     m_editList = nullptr;
     m_historyList = nullptr;
+    // The keyboard focus stays with the calculator when the part that had it goes
+    for (const QWidget* panel :
+         {static_cast<QWidget*>(m_unitPanel), static_cast<QWidget*>(m_datePanel), static_cast<QWidget*>(m_worksheetPanel)}) {
+        if (panel != nullptr && panel->isAncestorOf(QApplication::focusWidget())) {
+            m_area->setFocus();
+        }
+    }
+    m_unitPanel = nullptr;
+    m_datePanel = nullptr;
+    m_worksheetPanel = nullptr;
 
     m_builtHistory = m_calculator.isHistoryShown();
     const ViewLayout& layout = layoutOf(view, m_builtHistory);
     m_builtView = view;
-    m_area->setFixedSize(layout.clientWidth, layout.clientHeight);
+    m_builtPanel = m_calculator.sidePanel();
+    const bool panelShown = m_builtPanel != SidePanel::Basic;
+    m_area->setFixedSize(panelShown ? sidePanelLayoutOf(view, m_builtHistory).clientWidth : layout.clientWidth,
+                         layout.clientHeight);
     m_display->setViewLayout(layout);
     m_display->setGeometry(toRect(layout.displayFrame));
 
@@ -474,6 +520,118 @@ void MainWindow::buildView(View view)
         m_viewParts.push_back(button);
         m_buttons.push_back(button);
     }
+    buildSidePanel(view);
+}
+
+void MainWindow::buildSidePanel(View view)
+{
+    if (m_builtPanel == SidePanel::UnitConversion) {
+        buildUnitConversionPanel(view);
+    } else if (m_builtPanel == SidePanel::DateCalculation) {
+        buildDateCalculationPanel(view);
+    } else if (const std::optional<Worksheet> worksheet = worksheetOf(m_builtPanel)) {
+        buildWorksheetPanel(view, *worksheet);
+    }
+}
+
+void MainWindow::buildUnitConversionPanel(View view)
+{
+    m_unitPanel = new UnitConversionPanel(m_area);
+    m_unitPanel->setObjectName(QStringLiteral("unit.panel"));
+    m_unitPanel->setGeometry(toRect(sidePanelLayoutOf(view, m_builtHistory).frame));
+    connect(m_unitPanel, &UnitConversionPanel::typeChosen, this, [this](int index) {
+        runCommand("unit.type." + std::to_string(index));
+    });
+    connect(m_unitPanel, &UnitConversionPanel::fromChosen, this, [this](int index) {
+        runCommand("unit.from." + std::to_string(index));
+    });
+    connect(m_unitPanel, &UnitConversionPanel::toChosen, this, [this](int index) {
+        runCommand("unit.to." + std::to_string(index));
+    });
+    connect(m_unitPanel, &UnitConversionPanel::inputEdited, this, [this](const QString& text) {
+        m_calculator.run("unit.input", text.toStdWString());
+        showCalculator();
+    });
+    connect(m_unitPanel, &UnitConversionPanel::focusToCalculator, this, [this] { m_area->setFocus(); });
+    // Windows 7's Tab order: From, its unit, To, its unit, the calculator, the type list, From again
+    setTabOrder(m_unitPanel->fromBox(), m_unitPanel->fromList());
+    setTabOrder(m_unitPanel->fromList(), m_unitPanel->toBox());
+    setTabOrder(m_unitPanel->toBox(), m_unitPanel->toList());
+    setTabOrder(m_unitPanel->toList(), m_area);
+    setTabOrder(m_area, m_unitPanel->typeList());
+    setTabOrder(m_unitPanel->typeList(), m_unitPanel->fromBox());
+    m_unitPanel->show();
+    m_viewParts.push_back(m_unitPanel);
+}
+
+void MainWindow::buildDateCalculationPanel(View view)
+{
+    m_datePanel = new DateCalculationPanel(m_area);
+    m_datePanel->setObjectName(QStringLiteral("date.panel"));
+    m_datePanel->setGeometry(toRect(sidePanelLayoutOf(view, m_builtHistory).frame));
+    const auto runDate = [this](const std::string& commandId, const QString& text) {
+        m_calculator.run(commandId, text.toStdWString());
+        showCalculator();
+    };
+    connect(m_datePanel, &DateCalculationPanel::modeChosen, this, [this](int mode) { runCommand("date.mode." + std::to_string(mode)); });
+    connect(m_datePanel, &DateCalculationPanel::differenceFromChosen, this,
+            [runDate](QDate date) { runDate("date.difference_from", date.toString(Qt::ISODate)); });
+    connect(m_datePanel, &DateCalculationPanel::differenceToChosen, this,
+            [runDate](QDate date) { runDate("date.difference_to", date.toString(Qt::ISODate)); });
+    connect(m_datePanel, &DateCalculationPanel::shiftFromChosen, this,
+            [runDate](QDate date) { runDate("date.shift_from", date.toString(Qt::ISODate)); });
+    connect(m_datePanel, &DateCalculationPanel::subtractChosen, this,
+            [this](bool subtract) { runCommand(subtract ? "date.subtract" : "date.add"); });
+    static constexpr std::array<std::string_view, 3> fieldNames{"date.years", "date.months", "date.days"};
+    connect(m_datePanel, &DateCalculationPanel::fieldEdited, this, [runDate](int field, const QString& text) {
+        runDate(std::string(fieldNames.at(static_cast<std::size_t>(field))), text);
+    });
+    connect(m_datePanel, &DateCalculationPanel::fieldStepped, this, [this](int field, bool up) {
+        runCommand(std::string(fieldNames.at(static_cast<std::size_t>(field))) + (up ? ".up" : ".down"));
+    });
+    connect(m_datePanel, &DateCalculationPanel::calculateChosen, this, [this] { runCommand("date.calculate"); });
+    connect(m_datePanel, &DateCalculationPanel::focusToCalculator, this, [this] { m_area->setFocus(); });
+    // Windows 7's Tab order: the parts of the mode, Calculate, the calculator, the mode list, the first part again
+    const std::vector<QWidget*> parts = m_datePanel->tabOrder();
+    for (std::size_t index = 0; index + 1 < parts.size(); ++index) {
+        setTabOrder(parts.at(index), parts.at(index + 1));
+    }
+    setTabOrder(parts.back(), m_area);
+    setTabOrder(m_area, m_datePanel->modeList());
+    setTabOrder(m_datePanel->modeList(), parts.front());
+    m_datePanel->show();
+    m_viewParts.push_back(m_datePanel);
+}
+
+void MainWindow::buildWorksheetPanel(View view, Worksheet worksheet)
+{
+    m_worksheetPanel = new WorksheetPanel(worksheet, m_area);
+    m_worksheetPanel->setObjectName(QStringLiteral("worksheet.panel"));
+    m_worksheetPanel->setGeometry(toRect(sidePanelLayoutOf(view, m_builtHistory).frame));
+    connect(m_worksheetPanel, &WorksheetPanel::choiceChosen, this, [this](int item) { runCommand("worksheet.choose." + std::to_string(item)); });
+    connect(m_worksheetPanel, &WorksheetPanel::focusToCalculator, this, [this] { m_area->setFocus(); });
+    connect(m_worksheetPanel, &WorksheetPanel::valueEdited, this, [this](int value, const QString& text) {
+        m_calculator.run("worksheet.value." + std::to_string(value), text.toStdWString());
+        showCalculator();
+    });
+    // After Calculate the keyboard focus goes to the result, or to the box a message points at (windows7-worksheets.md
+    // part B line 2, part D)
+    connect(m_worksheetPanel, &WorksheetPanel::calculateChosen, this, [this] {
+        runCommand("worksheet.calculate");
+        if (m_worksheetPanel != nullptr) {
+            m_worksheetPanel->showCalculated(m_calculator.worksheetCalculator());
+        }
+    });
+    // Windows 7's Tab order: the boxes, Calculate, the result, the calculator, the list, the first box again
+    const std::vector<QWidget*> parts = m_worksheetPanel->tabOrder();
+    for (std::size_t index = 0; index + 1 < parts.size(); ++index) {
+        setTabOrder(parts.at(index), parts.at(index + 1));
+    }
+    setTabOrder(parts.back(), m_area);
+    setTabOrder(m_area, m_worksheetPanel->choiceList());
+    setTabOrder(m_worksheetPanel->choiceList(), parts.front());
+    m_worksheetPanel->show();
+    m_viewParts.push_back(m_worksheetPanel);
 }
 
 // The Statistics view's list and the history list, each with its two selection buttons, on the display (Windows 7)
@@ -708,9 +866,22 @@ void MainWindow::runKeyCommand(std::string_view commandId)
 void MainWindow::showCalculator()
 {
     const View view = m_calculator.view();
-    if (view != m_builtView || m_calculator.isHistoryShown() != m_builtHistory) {
+    if (view != m_builtView || m_calculator.isHistoryShown() != m_builtHistory || m_calculator.sidePanel() != m_builtPanel) {
         const bool viewChanged = view != m_builtView;
+        const bool panelChanged = m_calculator.sidePanel() != m_builtPanel;
+        if (panelChanged) {
+            QSettings().setValue(sidePanelKey, sidePanelName(m_calculator.sidePanel()));
+        }
         buildView(view);
+        // The Date calculation panel takes the keyboard focus on its mode list when it is chosen (Windows 7, part A
+        // line 4)
+        if (panelChanged && m_datePanel != nullptr) {
+            m_datePanel->modeList()->setFocus();
+        }
+        // A Worksheet's list as well (windows7-worksheets.md part B line 2)
+        if (panelChanged && m_worksheetPanel != nullptr) {
+            m_worksheetPanel->choiceList()->setFocus();
+        }
         if (viewChanged) {
             QSettings().setValue(viewKey, nameOf(view));
             buildEditMenu();
@@ -739,6 +910,15 @@ void MainWindow::showCalculator()
         m_bracketCounter->showCount(m_calculator.openBrackets());
     }
     showLists();
+    if (m_unitPanel != nullptr) {
+        m_unitPanel->showState(m_calculator.unitConverter());
+    }
+    if (m_datePanel != nullptr) {
+        m_datePanel->showState(m_calculator.dateCalculator());
+    }
+    if (m_worksheetPanel != nullptr) {
+        m_worksheetPanel->showState(m_calculator.worksheetCalculator());
+    }
     showEditBox();
     // After the edit box: it decides whether Edit reads Recalculate
     showMenuStates();
@@ -762,6 +942,10 @@ void MainWindow::showMenuStates()
     }
     for (QAction* action : m_viewActions) {
         action->setChecked(action->data().toString() == QStringLiteral("view.") + nameOf(m_calculator.view()));
+    }
+    for (QAction* action : m_panelActions) {
+        const std::optional<CommandTarget> target = findCommand(action->data().toString().toStdString());
+        action->setChecked(target && target->panel == m_calculator.sidePanel());
     }
 }
 

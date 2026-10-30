@@ -2,14 +2,18 @@
 
 #include "core/view.h"
 
+#include <array>
+#include <cstddef>
 #include <cstdint>
 #include <span>
 #include <string_view>
 
 // --- Version ------------------------------------------------------------
-// src/core/layout.h 0.5.12
+// src/core/layout.h 0.8.13
 
 // --- Version history ----------------------------------------------------
+// v0.8.13: The side panel beside every view, and the parts of the Unit conversion (D-025) and Date calculation (D-026)
+//          panels and of the Worksheets (D-027)
 // v0.5.12: The Standard and Scientific views with History shown (the list of entries in the display)
 // v0.4.11: The Statistics view: its buttons and the list inside the display (D-023)
 // v0.3.8: The Programmer view: its buttons, the bases and word sizes, the bit display; choices of any kind
@@ -118,6 +122,80 @@ struct ViewLayout
 
 // The layout of a view; Standard and Scientific are taller with History shown (windows7-history.md part A)
 const ViewLayout& layoutOf(View view, bool historyShown = false);
+
+// The side panel beside the calculator (View > Unit conversion, Date calculation, Worksheets), measured on the Windows 7
+// Calculator (windows7-unitconversion.md part A): 454 px wide, 13 px right of the view and from the window's top; the
+// window grows by the panel and a 13 px margin, its height stays the view's
+struct SidePanelLayout
+{
+    Rectangle frame;
+    int clientWidth = 0;
+};
+
+SidePanelLayout sidePanelLayoutOf(View view, bool historyShown = false);
+
+// The parts of the Unit conversion panel, from the panel's top left corner (windows7-unitconversion.md part A line 2)
+struct UnitConversionLayout
+{
+    Rectangle typeLabel;
+    Rectangle typeList;
+    Rectangle fromLabel;
+    Rectangle fromBox;
+    Rectangle fromList;
+    Rectangle toLabel;
+    Rectangle toBox;
+    Rectangle toList;
+};
+
+const UnitConversionLayout& unitConversionLayout();
+
+// The parts of the Date calculation panel, from the panel's top left corner (windows7-datecalculation.md part A line 2):
+// the mode label and list are always there, the rest belongs to one mode
+struct DateCalculationLayout
+{
+    Rectangle modeLabel;
+    Rectangle modeList;
+    // Calculate the difference between two dates
+    Rectangle differenceFromLabel;
+    Rectangle differenceFrom;
+    Rectangle differenceToLabel;
+    Rectangle differenceTo;
+    Rectangle differenceLabel;
+    Rectangle difference;
+    Rectangle totalDaysLabel;
+    Rectangle totalDays;
+    // Add or subtract days to a specified date; the number boxes in the order Year(s), Month(s), Day(s)
+    Rectangle shiftFromLabel;
+    Rectangle shiftFrom;
+    Rectangle add;
+    Rectangle subtract;
+    std::array<Rectangle, 3> fieldLabels;
+    std::array<Rectangle, 3> fields;
+    std::array<Rectangle, 3> fieldArrows;
+    Rectangle shiftedLabel;
+    Rectangle shifted;
+    // The same place in both modes
+    Rectangle calculate;
+};
+
+const DateCalculationLayout& dateCalculationLayout();
+
+// The most boxes a Worksheet has (Vehicle lease: five values and the one calculated)
+inline constexpr std::size_t mostWorksheetBoxes = 5;
+
+// The parts of a Worksheet, from the panel's top left corner (windows7-worksheets.md part A line 3): the same places in
+// all four; a worksheet with fewer boxes uses the first ones
+struct WorksheetLayout
+{
+    Rectangle choiceLabel;
+    Rectangle choiceList;
+    std::array<Rectangle, mostWorksheetBoxes> valueLabels;
+    std::array<Rectangle, mostWorksheetBoxes> boxes;
+    Rectangle calculate;
+    Rectangle result;
+};
+
+const WorksheetLayout& worksheetLayout();
 
 // The command id of the decimal-point button; the window shows the regional decimal separator as its label
 inline constexpr std::string_view decimalCommand = "decimal";

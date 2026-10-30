@@ -1,6 +1,7 @@
 #include "core/commands.h"
 
 #include "core/statistics.h"
+#include "core/view.h"
 
 #include "CalcManager/Command.h"
 
@@ -12,9 +13,12 @@
 #include <vector>
 
 // --- Version ------------------------------------------------------------
-// src/core/commands.cpp 0.5.12
+// src/core/commands.cpp 0.8.13
 
 // --- Version history ----------------------------------------------------
+// v0.8.13: The side panels (view.basic, view.unit_conversion, view.date_calculation and the four Worksheets), the Unit
+//          conversion panel (unit.type.N, unit.from.N, unit.to.N, unit.input), the Date calculation panel (date.mode.N
+//          and the date.* commands) and the Worksheets (worksheet.choose.N, worksheet.value.N, worksheet.calculate)
 // v0.5.12: History, Digit grouping, Copy and Paste: their commands (history.select.N carries the entry's index)
 // v0.4.11: The commands of the Statistics view (Add, CAD, the statistics, the list's selection and Delete)
 // v0.3.8: The commands of the Programmer view (bases, word sizes, A to F, logic, shifts, rotations, the 64 bits)
@@ -49,6 +53,19 @@ constexpr Entry statistic(std::string_view id, Statistic which)
 {
     return {.id = id,
             .target = {.kind = CommandKind::StatisticsFunction, .engineCommand = Command::CommandNULL, .statistic = which}};
+}
+
+constexpr Entry panel(std::string_view id, SidePanel which)
+{
+    return {.id = id,
+            .target = {.kind = CommandKind::ViewSidePanel, .engineCommand = Command::CommandNULL, .statistic = Statistic::Mean,
+                       .index = 0, .panel = which}};
+}
+
+// A command of one of the Date calculation panel's number boxes (0 years, 1 months, 2 days)
+constexpr Entry dateField(std::string_view id, CommandKind kind, std::size_t field)
+{
+    return {.id = id, .target = {.kind = kind, .engineCommand = Command::CommandNULL, .statistic = Statistic::Mean, .index = field}};
 }
 
 constexpr std::array registry = {
@@ -200,7 +217,13 @@ constexpr std::array registry = {
     own("view.scientific", CommandKind::ViewScientific),
     own("view.programmer", CommandKind::ViewProgrammer),
     own("view.statistics", CommandKind::ViewStatistics),
-    own("view.basic", CommandKind::ViewBasic),
+    panel("view.basic", SidePanel::Basic),
+    panel("view.unit_conversion", SidePanel::UnitConversion),
+    panel("view.date_calculation", SidePanel::DateCalculation),
+    panel("view.mortgage", SidePanel::Mortgage),
+    panel("view.vehicle_lease", SidePanel::VehicleLease),
+    panel("view.fuel_economy_mpg", SidePanel::FuelEconomyMpg),
+    panel("view.fuel_economy_litres", SidePanel::FuelEconomyLitres),
     // The Statistics view
     own("statistics.add", CommandKind::StatisticsAdd),
     own("statistics.clear_all", CommandKind::StatisticsClearAll),
@@ -230,20 +253,53 @@ constexpr std::array registry = {
     own("history.edit", CommandKind::HistoryEdit),
     own("history.cancel_edit", CommandKind::HistoryCancelEdit),
     own("history.recalculate", CommandKind::HistoryRecalculate),
+    // The Unit conversion panel (its lists' items are "unit.type.N", "unit.from.N", "unit.to.N")
+    own("unit.input", CommandKind::UnitInput),
+    // The Date calculation panel (its modes are "date.mode.N"); the dates and number boxes take a text
+    own("date.difference_from", CommandKind::DateDifferenceFrom),
+    own("date.difference_to", CommandKind::DateDifferenceTo),
+    own("date.shift_from", CommandKind::DateShiftFrom),
+    own("date.add", CommandKind::DateAdd),
+    own("date.subtract", CommandKind::DateSubtract),
+    dateField("date.years", CommandKind::DateField, 0),
+    dateField("date.months", CommandKind::DateField, 1),
+    dateField("date.days", CommandKind::DateField, 2),
+    dateField("date.years.up", CommandKind::DateFieldUp, 0),
+    dateField("date.years.down", CommandKind::DateFieldDown, 0),
+    dateField("date.months.up", CommandKind::DateFieldUp, 1),
+    dateField("date.months.down", CommandKind::DateFieldDown, 1),
+    dateField("date.days.up", CommandKind::DateFieldUp, 2),
+    dateField("date.days.down", CommandKind::DateFieldDown, 2),
+    own("date.calculate", CommandKind::DateCalculate),
+    // The Worksheets (their lists' items are "worksheet.choose.N", their values "worksheet.value.N", with a text)
+    own("worksheet.calculate", CommandKind::WorksheetCalculate),
 };
 
-// "statistics.select.N" and "history.select.N": N is the item's index, at most nine digits
-std::optional<CommandTarget> selectCommand(std::string_view id)
+// The commands that carry an index in their id ("statistics.select.N", "history.select.N", "unit.type.N", "unit.from.N",
+// "unit.to.N", "date.mode.N", "worksheet.choose.N", "worksheet.value.N"): N is the item's index, at most nine digits
+std::optional<CommandTarget> indexedCommand(std::string_view id)
 {
-    constexpr std::string_view statisticsPrefix = "statistics.select.";
-    constexpr std::string_view historyPrefix = "history.select.";
+    struct Prefix
+    {
+        std::string_view text;
+        CommandKind kind;
+    };
+    static constexpr std::array prefixes = {
+        Prefix{.text = "statistics.select.", .kind = CommandKind::StatisticsSelect},
+        Prefix{.text = "history.select.", .kind = CommandKind::HistorySelect},
+        Prefix{.text = "unit.type.", .kind = CommandKind::UnitType},
+        Prefix{.text = "unit.from.", .kind = CommandKind::UnitFrom},
+        Prefix{.text = "unit.to.", .kind = CommandKind::UnitTo},
+        Prefix{.text = "date.mode.", .kind = CommandKind::DateMode},
+        Prefix{.text = "worksheet.choose.", .kind = CommandKind::WorksheetChoose},
+        Prefix{.text = "worksheet.value.", .kind = CommandKind::WorksheetValue},
+    };
     constexpr std::size_t mostDigits = 9;
-    const bool history = id.starts_with(historyPrefix);
-    if (!history && !id.starts_with(statisticsPrefix)) {
+    const auto* prefix = std::ranges::find_if(prefixes, [id](const Prefix& candidate) { return id.starts_with(candidate.text); });
+    if (prefix == prefixes.end()) {
         return std::nullopt;
     }
-    const std::string_view prefix = history ? historyPrefix : statisticsPrefix;
-    const std::string_view digits = id.substr(prefix.size());
+    const std::string_view digits = id.substr(prefix->text.size());
     if (digits.empty() || digits.size() > mostDigits || !std::ranges::all_of(digits, [](char digit) { return digit >= '0' && digit <= '9'; })) {
         return std::nullopt;
     }
@@ -251,15 +307,15 @@ std::optional<CommandTarget> selectCommand(std::string_view id)
     for (const char digit : digits) {
         index = (index * 10) + static_cast<std::size_t>(digit - '0');
     }
-    return CommandTarget{.kind = history ? CommandKind::HistorySelect : CommandKind::StatisticsSelect, .engineCommand = Command::CommandNULL, .statistic = Statistic::Mean, .index = index};
+    return CommandTarget{.kind = prefix->kind, .engineCommand = Command::CommandNULL, .statistic = Statistic::Mean, .index = index};
 }
 
 }  // namespace
 
 std::optional<CommandTarget> findCommand(std::string_view id)
 {
-    if (auto select = selectCommand(id)) {
-        return select;
+    if (auto indexed = indexedCommand(id)) {
+        return indexed;
     }
     const auto* found = std::ranges::find(registry, id, &Entry::id);
     if (found == registry.end()) {

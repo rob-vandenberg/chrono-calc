@@ -7,6 +7,7 @@
 #include "core/layout.h"
 #include "core/menus.h"
 #include "core/view.h"
+#include "core/worksheets.h"
 
 #include <map>
 #include <optional>
@@ -20,9 +21,11 @@ class QKeyEvent;
 class QMenu;
 
 // --- Version ------------------------------------------------------------
-// src/ui/mainwindow.h 0.5.12
+// src/ui/mainwindow.h 0.8.13
 
 // --- Version history ----------------------------------------------------
+// v0.8.13: The side panel beside every view (View > Basic, Unit conversion, Date calculation, Worksheets),
+//          remembered; the Unit conversion and Date calculation panels and the Worksheets
 // v0.5.12: History (the list in a taller display, the edit box), Digit grouping, Copy and Paste with the clipboard,
 //          the Edit menu of each view, History and Digit grouping remembered (D-024)
 // v0.4.11: The Statistics view: its size, the list of values with its selection buttons, the count (D-023)
@@ -42,6 +45,9 @@ class CalcButton;
 class DisplayPanel;
 class ListEditBox;
 class StatisticsList;
+class DateCalculationPanel;
+class UnitConversionPanel;
+class WorksheetPanel;
 
 // The calculator's window. Every key, click and menu item runs a command of the core and then shows what the
 // calculator shows; the window computes nothing itself (AGENTS.md 4.1, 4.3).
@@ -71,6 +77,12 @@ private:
     void connectMenuAction(QAction* action, std::string_view commandId);
     void buildLists(const ViewLayout& layout);
     void buildHistoryList(const ViewLayout& layout);
+    // The panel beside the view (View > Unit conversion, Date calculation, Worksheets), each in the Tab order of
+    // Windows 7: its boxes and lists, the calculator, its first list
+    void buildSidePanel(View view);
+    void buildUnitConversionPanel(View view);
+    void buildDateCalculationPanel(View view);
+    void buildWorksheetPanel(View view, Worksheet worksheet);
     void showMenuStates();
     void showLists();
     // The command of a key in the current view, as Windows 7 reads its keys
@@ -108,6 +120,13 @@ private:
     QWidget* m_area = nullptr;
     DisplayPanel* m_display = nullptr;
     View m_builtView = View::Standard;
+    SidePanel m_builtPanel = SidePanel::Basic;
+    // The Unit conversion panel while it shows
+    UnitConversionPanel* m_unitPanel = nullptr;
+    // The Date calculation panel while it shows
+    DateCalculationPanel* m_datePanel = nullptr;
+    // The Worksheet shown
+    WorksheetPanel* m_worksheetPanel = nullptr;
     // Everything of the current view (buttons, angle units, counter), replaced on a view change
     std::vector<QWidget*> m_viewParts;
     std::vector<CalcButton*> m_buttons;
@@ -122,6 +141,8 @@ private:
     StatisticsList* m_editList = nullptr;
     bool m_builtHistory = false;
     std::vector<QAction*> m_viewActions;
+    // View > Basic and the side panels (one dot among them)
+    std::vector<QAction*> m_panelActions;
     QMenu* m_editMenu = nullptr;
     // The menu items whose state follows the calculator: History and Digit grouping (ticks), Paste (greyed without text
     // on the clipboard), Edit (Recalculate while editing)

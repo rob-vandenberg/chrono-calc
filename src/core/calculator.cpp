@@ -1,11 +1,16 @@
 #include "core/calculator.h"
 
 #include "core/commands.h"
+#include "core/datecalculator.h"
 #include "core/enginetexts.h"
 #include "core/historyedit.h"
 #include "core/keys.h"
 #include "core/statistics.h"
+#include "core/unitconversion.h"
+#include "core/unitconverter.h"
 #include "core/view.h"
+#include "core/worksheetcalculator.h"
+#include "core/worksheets.h"
 
 #include "CalcManager/CalculatorHistory.h"
 #include "CalcManager/Command.h"
@@ -15,6 +20,7 @@
 #include "Header Files/ICalcDisplay.h"
 #include "Header Files/Rational.h"
 #include "Ratpack/CalcErr.h"
+#include "Ratpack/ratpak.h"
 
 #include <algorithm>
 #include <cstddef>
@@ -28,9 +34,13 @@
 #include <vector>
 
 // --- Version ------------------------------------------------------------
-// src/core/calculator.cpp 0.5.12
+// src/core/calculator.cpp 0.8.13
 
 // --- Version history ----------------------------------------------------
+// v0.8.13: The side panel (View > Basic, Unit conversion, Date calculation), kept over a view change; the Unit
+//          conversion panel: its lists, the From box and the To result on the engine's exact fractions (D-025); the Date
+//          calculation panel (D-026); the Worksheets, worked in decimal and the view's precision given back after
+//          (D-027)
 // v0.5.12: History (one per view, from the engine; choosing an entry, Copy history, Clear, Edit), Digit grouping,
 //          Copy and Paste (D-024)
 // v0.4.11: The Statistics view: a fourth engine (16 digits, as Windows 7), the list of values with its selection, Add,
@@ -455,6 +465,8 @@ Calculator::Calculator(const Separators& separators)
     // engine of the current view and moves with a view change
     m_engine->PersistedMemObject(CalcEngine::Rational(0));
     m_engine->ProcessCommand(IDC_CLEAR);
+    m_unitConverter = UnitConverter(separators.decimal);
+    m_worksheetCalculator = WorksheetCalculator(separators.decimal);
 }
 
 // The engine points to the display, the texts and the history; it is declared last, so it is destroyed first
@@ -538,7 +550,38 @@ bool Calculator::runOwnCommand(const CommandTarget& target, std::wstring_view te
     case CommandKind::HistoryRecalculate:
         runHistoryCommand(target, text);
         return true;
-    case CommandKind::ViewBasic:
+    case CommandKind::ViewSidePanel:
+        // The panel shows beside every view; choosing the one shown again changes nothing (Windows 7)
+        m_sidePanel = target.panel;
+        return true;
+    case CommandKind::UnitType:
+    case CommandKind::UnitFrom:
+    case CommandKind::UnitTo:
+    case CommandKind::UnitInput:
+        runUnitCommand(target, text);
+        return true;
+    case CommandKind::DateMode:
+    case CommandKind::DateDifferenceFrom:
+    case CommandKind::DateDifferenceTo:
+    case CommandKind::DateShiftFrom:
+    case CommandKind::DateAdd:
+    case CommandKind::DateSubtract:
+    case CommandKind::DateField:
+    case CommandKind::DateFieldUp:
+    case CommandKind::DateFieldDown:
+    case CommandKind::DateCalculate:
+        // Whole day numbers only, exact without the engine (D-026); the panel's state is kept while it is hidden
+        m_dateCalculator.run(target, text);
+        return true;
+    case CommandKind::WorksheetChoose:
+    case CommandKind::WorksheetValue:
+    case CommandKind::WorksheetCalculate:
+        // On the worksheet shown, nothing while none shows; Calculate sets the number library to decimal and its own
+        // precisions, so the view's precision (and radix) is set again after (D-027)
+        if (const std::optional<Worksheet> worksheet = worksheetOf(m_sidePanel)) {
+            m_worksheetCalculator.run(*worksheet, target, text);
+            m_engine->ChangePrecision(precisionOf(m_view));
+        }
         return true;
     case CommandKind::ViewStandard:
         switchView(View::Standard);
@@ -573,6 +616,76 @@ bool Calculator::runOwnCommand(const CommandTarget& target, std::wstring_view te
         break;
     }
     return false;
+}
+
+// The Unit conversion panel's commands work while it is hidden too (the calculator keeps its state, Windows 7)
+void Calculator::runUnitCommand(const CommandTarget& target, std::wstring_view text)
+{
+    switch (target.kind) {
+    case CommandKind::UnitType:
+        m_unitConverter.chooseType(target.index);
+        break;
+    case CommandKind::UnitFrom:
+        m_unitConverter.chooseFrom(target.index);
+        break;
+    case CommandKind::UnitTo:
+        m_unitConverter.chooseTo(target.index);
+        break;
+    case CommandKind::UnitInput:
+        m_unitConverter.setInput(text);
+        break;
+    default:
+        return;
+    }
+    convertUnits();
+}
+
+// The To box: the From value through the type's base unit on the engine's exact fractions (D-010), written as the
+// engine writes a number with 16 digits ("6,21371192237334e+16"), never grouped (windows7-unitconversion.md part C)
+void Calculator::convertUnits()
+{
+    const std::optional<CalcEngine::Rational> value = m_unitConverter.inputValue();
+    if (!value) {
+        m_unitConverter.setResult({});
+        return;
+    }
+    // The number library's shared constants: decimal with the Scientific view's 32 digits while converting (also in
+    // the Programmer view, whose engine may be in another base), then the current view's own again
+    ChangeConstants(10, scientificPrecision);
+    const std::vector<UnitSpec>& units = unitTypes()[m_unitConverter.type()].units;
+    const std::optional<CalcEngine::Rational> result
+        = convertUnit(*value, units[m_unitConverter.from()], units[m_unitConverter.to()]);
+    // A From typed with an exponent gives a To written with one ("e5" Meter is "1,e+7" Centimeters, part G line 2)
+    const bool exponentForm = m_unitConverter.input().find(L'e') != std::wstring::npos;
+    // The number library reports what it cannot write by throwing its error code: the To box is then empty
+    std::wstring written;
+    try {
+        written = result ? writtenNumber(*result, exponentForm, m_unitConverter.decimal()) : std::wstring();
+    } catch (const uint32_t /*error*/) {
+        written.clear();
+    }
+    m_unitConverter.setResult(written);
+    m_engine->ChangePrecision(precisionOf(m_view));
+}
+
+SidePanel Calculator::sidePanel() const
+{
+    return m_sidePanel;
+}
+
+const UnitConverter& Calculator::unitConverter() const
+{
+    return m_unitConverter;
+}
+
+const DateCalculator& Calculator::dateCalculator() const
+{
+    return m_dateCalculator;
+}
+
+const WorksheetCalculator& Calculator::worksheetCalculator() const
+{
+    return m_worksheetCalculator;
 }
 
 void Calculator::runEditCommand(const CommandTarget& target, std::wstring_view text)

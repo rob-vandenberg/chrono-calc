@@ -13,9 +13,10 @@
 #include <string_view>
 
 // --- Version ------------------------------------------------------------
-// tests/test_standardview.cpp 0.5.12
+// tests/test_standardview.cpp 0.8.13
 
 // --- Version history ----------------------------------------------------
+// v0.8.13: The side panels and the Worksheets are built; only Help is greyed
 // v0.5.12: Standard and Scientific with History shown; History, Digit grouping and each view's Edit menu built
 // v0.4.11: The Statistics view: its 30 buttons, the list in the display, nothing greyed; View > Statistics built
 // v0.3.8: The Programmer view: its 45 buttons, choices and the bits; what each base allows
@@ -291,10 +292,10 @@ private slots:
                 }
             }
         }
-        // The views, Basic, History, Digit grouping, Copy, Paste and the four History items; greyed: the side panels, the
-        // worksheets and Help
-        QCOMPARE(built, 13);
-        QCOMPARE(greyed, 8);
+        // The views, Basic, Unit conversion, Date calculation, the four Worksheets, History, Digit grouping, Copy, Paste and
+        // the four History items; greyed: Help
+        QCOMPARE(built, 19);
+        QCOMPARE(greyed, 2);
         // Each view's Edit menu runs registered commands; Programmer's History submenu has none (greyed)
         for (const chrono_calc::View each : {chrono_calc::View::Scientific, chrono_calc::View::Programmer, chrono_calc::View::Statistics}) {
             for (const chrono_calc::MenuItem& item : chrono_calc::editMenu(each).items) {

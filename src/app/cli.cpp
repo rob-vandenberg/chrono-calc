@@ -1,6 +1,12 @@
 #include "core/calculator.h"
 #include "core/commands.h"
+#include "core/datecalculation.h"
+#include "core/datecalculator.h"
 #include "core/keys.h"
+#include "core/unitconversion.h"
+#include "core/unitconverter.h"
+#include "core/worksheetcalculator.h"
+#include "core/worksheets.h"
 #include "core/view.h"
 
 #include <cstddef>
@@ -13,9 +19,11 @@
 #include <vector>
 
 // --- Version ------------------------------------------------------------
-// src/app/cli.cpp 0.5.12
+// src/app/cli.cpp 0.8.13
 
 // --- Version history ----------------------------------------------------
+// v0.8.13: The Unit conversion panel while it shows: its type, From and To; the Date calculation panel: its mode, dates,
+//          numbers and results; a Worksheet: the value it calculates, its boxes, the result and the message
 // v0.5.12: Commands with a text (edit.paste=TEXT); the history, its selected entry and the copied text
 // v0.4.11: In the Statistics view also the count, the list and the selected item
 // v0.2.7: Typed characters are read in the calculator's current view (the Scientific keys)
@@ -26,7 +34,8 @@
 // characters (12+3=). Prints the display, the expression line, whether an error shows and whether a number is in
 // memory; in the Statistics view also the count, the list (values separated by " | ") and the selected item (from 0,
 // "none"); where the view has a history that is not empty, the history and its selected entry; and the text the last
-// copy command gave ("\n" for a line end). Exit 2 for an argument it cannot read.
+// copy command gave ("\n" for a line end); the Unit conversion or Date calculation panel or a Worksheet while it shows. Exit 2 for an
+// argument it cannot read.
 namespace {
 
 std::string narrow(const std::wstring& text)
@@ -103,6 +112,56 @@ bool runArgument(chrono_calc::Calculator& calculator, std::string_view argument)
     return true;
 }
 
+// The side panel while it shows: the Unit conversion panel ("unit: Length", "from: 5 Inch", "to: 12,7 Centimeters"), or
+// the Date calculation panel, or a Worksheet
+void printSidePanel(const chrono_calc::Calculator& calculator)
+{
+    if (calculator.sidePanel() == chrono_calc::SidePanel::UnitConversion) {
+        const chrono_calc::UnitConverter& converter = calculator.unitConverter();
+        const chrono_calc::UnitTypeSpec& type = chrono_calc::unitTypes()[converter.type()];
+        std::cout << "unit: " << type.name << '\n'
+                  << "from: " << narrow(converter.input()) << ' ' << type.units[converter.from()].name << '\n'
+                  << "to: " << narrow(converter.result()) << ' ' << type.units[converter.to()].name << '\n';
+    }
+    if (calculator.sidePanel() == chrono_calc::SidePanel::DateCalculation) {
+        // The Date calculation panel: "dates: 2026-01-15 to 2027-03-20" and its results, or "date: 2026-10-30 add 1 2 3"
+        // and its result (the day as "2028-01-02", or "Date out of bound")
+        const chrono_calc::DateCalculator& dates = calculator.dateCalculator();
+        if (dates.mode() == chrono_calc::DateMode::Difference) {
+            std::cout << "dates: " << narrow(chrono_calc::isoText(dates.differenceFrom())) << " to "
+                      << narrow(chrono_calc::isoText(dates.differenceTo())) << '\n'
+                      << "difference: " << narrow(dates.differenceText()) << '\n'
+                      << "days: " << narrow(dates.totalDaysText()) << '\n';
+        } else {
+            const chrono_calc::ShiftedDate& shifted = dates.shifted();
+            std::wstring result;
+            if (shifted.shown) {
+                result = shifted.date ? chrono_calc::isoText(*shifted.date) : std::wstring(chrono_calc::outOfBoundText);
+            }
+            std::cout << "date: " << narrow(chrono_calc::isoText(dates.shiftFrom())) << (dates.isSubtract() ? " subtract " : " add ")
+                      << narrow(dates.field(chrono_calc::DateField::Years)) << ' ' << narrow(dates.field(chrono_calc::DateField::Months))
+                      << ' ' << narrow(dates.field(chrono_calc::DateField::Days)) << '\n'
+                      << "result: " << narrow(result) << '\n';
+        }
+    }
+    if (const std::optional<chrono_calc::Worksheet> worksheet = chrono_calc::worksheetOf(calculator.sidePanel())) {
+        // A Worksheet: "worksheet: Mortgage", "calculate: Monthly payment", a line per box ("Term (years): 30"), the
+        // result and the last message with the value it points at ("message: This value cannot be blank. (Down payment)")
+        const chrono_calc::WorksheetCalculator& worksheets = calculator.worksheetCalculator();
+        const chrono_calc::WorksheetSpec& spec = chrono_calc::worksheetSpec(*worksheet);
+        const chrono_calc::WorksheetState& state = worksheets.state(*worksheet);
+        std::cout << "worksheet: " << spec.name << '\n' << "calculate: " << spec.values.at(state.chosen) << '\n';
+        for (const std::size_t value : worksheets.boxValues(*worksheet)) {
+            std::cout << spec.values.at(value) << ": " << narrow(state.texts.at(value)) << '\n';
+        }
+        std::cout << "result: " << narrow(state.texts.at(state.chosen)) << '\n';
+        if (state.message != chrono_calc::WorksheetMessage::None) {
+            std::cout << "message: " << narrow(std::wstring(chrono_calc::messageText(state.message))) << " ("
+                      << spec.values.at(state.messageValue) << ")\n";
+        }
+    }
+}
+
 }  // namespace
 
 int main(int argc, char* argv[])
@@ -141,6 +200,7 @@ int main(int argc, char* argv[])
         const std::optional<std::size_t> selected = calculator.selectedHistoryEntry();
         std::cout << '\n' << "selected entry: " << (selected ? std::to_string(*selected) : std::string("none")) << '\n';
     }
+    printSidePanel(calculator);
     if (copied) {
         std::wstring shown = *copied;
         for (std::size_t found = shown.find(L'\n'); found != std::wstring::npos; found = shown.find(L'\n', found + 2)) {

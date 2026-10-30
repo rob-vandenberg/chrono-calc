@@ -7,9 +7,11 @@
 #include <string_view>
 
 // --- Version ------------------------------------------------------------
-// src/core/layout.cpp 0.5.12
+// src/core/layout.cpp 0.8.13
 
 // --- Version history ----------------------------------------------------
+// v0.8.13: The side panel beside every view, and the parts of the Unit conversion (D-025) and Date calculation (D-026)
+//          panels and of the Worksheets (D-027)
 // v0.5.12: The Standard and Scientific views with History shown: the list in a taller display, everything else lower
 // v0.4.11: The Statistics view: its buttons and the list inside the display (D-023)
 // v0.3.8: The Programmer view: its buttons, the bases and word sizes, the bit display; choices of any kind
@@ -453,6 +455,103 @@ const ViewLayout& layoutOf(View view, bool historyShown)
     case View::Standard: break;
     }
     return standardLayout;
+}
+
+SidePanelLayout sidePanelLayoutOf(View view, bool historyShown)
+{
+    // Measured: Standard 264, 13, 454, 303; Scientific 508, 13; Programmer 508, 13, 454, 386; Statistics 264, 13, 454,
+    // 427; Standard with History 264, 13, 454, 428 (Scientific with History taken as the same height)
+    constexpr int panelTop = 13;
+    constexpr int panelWidth = 454;
+    constexpr int margin = 13;
+    constexpr int panelHeight = 303;
+    constexpr int programmerHeight = 386;
+    constexpr int statisticsHeight = 427;
+    constexpr int historyHeight = 428;
+    int height = panelHeight;
+    if (view == View::Programmer) {
+        height = programmerHeight;
+    } else if (view == View::Statistics) {
+        height = statisticsHeight;
+    } else if (historyShown) {
+        height = historyHeight;
+    }
+    const int left = layoutOf(view).clientWidth;
+    return {.frame = {.left = left, .top = panelTop, .width = panelWidth, .height = height},
+            .clientWidth = left + panelWidth + margin};
+}
+
+const UnitConversionLayout& unitConversionLayout()
+{
+    // Windows 7 (Standard): the panel at 264, 13; the label at 276, 26, 435, 30 and so on
+    static constexpr UnitConversionLayout layout{.typeLabel = {.left = 12, .top = 13, .width = 435, .height = 30},
+                                                 .typeList = {.left = 12, .top = 53, .width = 432, .height = 25},
+                                                 .fromLabel = {.left = 12, .top = 92, .width = 178, .height = 17},
+                                                 .fromBox = {.left = 12, .top = 116, .width = 432, .height = 28},
+                                                 .fromList = {.left = 12, .top = 149, .width = 432, .height = 25},
+                                                 .toLabel = {.left = 12, .top = 193, .width = 178, .height = 17},
+                                                 .toBox = {.left = 12, .top = 218, .width = 432, .height = 28},
+                                                 .toList = {.left = 12, .top = 250, .width = 432, .height = 25}};
+    return layout;
+}
+
+const DateCalculationLayout& dateCalculationLayout()
+{
+    // Windows 7 (Standard, client coordinates, the panel at 264, 13): the label at 276, 26, 420, 24, the list at 276, 54;
+    // Difference: "From" 276, 102, its date 351, 94, 120, 30, "To" 525, 102, its date 587, 94 and so on; Add or subtract:
+    // "From" 276, 102, its date 344, 94, Add 480, 98, Subtract 577, 98, Year(s) 276, 139 with its box at 344, 133 and its
+    // arrows at 384, 133 and so on; Calculate 609, 277, 99, 28 in both
+    static constexpr DateCalculationLayout layout{
+        .modeLabel = {.left = 12, .top = 13, .width = 420, .height = 24},
+        .modeList = {.left = 12, .top = 41, .width = 432, .height = 25},
+        .differenceFromLabel = {.left = 12, .top = 89, .width = 69, .height = 17},
+        .differenceFrom = {.left = 87, .top = 81, .width = 120, .height = 30},
+        .differenceToLabel = {.left = 261, .top = 89, .width = 63, .height = 17},
+        .differenceTo = {.left = 323, .top = 81, .width = 120, .height = 30},
+        .differenceLabel = {.left = 12, .top = 115, .width = 420, .height = 17},
+        .difference = {.left = 12, .top = 142, .width = 432, .height = 28},
+        .totalDaysLabel = {.left = 12, .top = 183, .width = 420, .height = 17},
+        .totalDays = {.left = 12, .top = 205, .width = 432, .height = 28},
+        .shiftFromLabel = {.left = 12, .top = 89, .width = 63, .height = 17},
+        .shiftFrom = {.left = 80, .top = 81, .width = 120, .height = 30},
+        .add = {.left = 216, .top = 85, .width = 97, .height = 21},
+        .subtract = {.left = 313, .top = 85, .width = 125, .height = 21},
+        .fieldLabels = {Rectangle{.left = 12, .top = 126, .width = 68, .height = 21},
+                        Rectangle{.left = 144, .top = 126, .width = 94, .height = 21},
+                        Rectangle{.left = 307, .top = 126, .width = 72, .height = 21}},
+        .fields = {Rectangle{.left = 80, .top = 120, .width = 40, .height = 28},
+                   Rectangle{.left = 242, .top = 120, .width = 40, .height = 28},
+                   Rectangle{.left = 385, .top = 120, .width = 40, .height = 28}},
+        .fieldArrows = {Rectangle{.left = 120, .top = 120, .width = 18, .height = 28},
+                        Rectangle{.left = 282, .top = 120, .width = 18, .height = 28},
+                        Rectangle{.left = 425, .top = 120, .width = 18, .height = 28}},
+        .shiftedLabel = {.left = 12, .top = 166, .width = 403, .height = 17},
+        .shifted = {.left = 12, .top = 190, .width = 432, .height = 28},
+        .calculate = {.left = 345, .top = 264, .width = 99, .height = 28}};
+    return layout;
+}
+
+const WorksheetLayout& worksheetLayout()
+{
+    // Windows 7 (Standard, client coordinates, the panel at 264, 13): the label at 276, 24, 430, 35, the list at 276, 54,
+    // 430, 25; the value labels 213 x 21 at 276 and 93, 124, 156, 187, 218; the boxes 217 x 27 at 489 and 88, 119, 151,
+    // 182, 213; Calculate 276, 276, 97, 28; the result 489, 278, 217, 27
+    static constexpr std::array<int, mostWorksheetBoxes> boxTops{75, 106, 138, 169, 200};
+    static constexpr int labelBelowBox = 5;
+    static const WorksheetLayout layout = [] {
+        WorksheetLayout parts{.choiceLabel = {.left = 12, .top = 11, .width = 430, .height = 35},
+                              .choiceList = {.left = 12, .top = 41, .width = 430, .height = 25},
+                              .valueLabels = {},
+                              .boxes = {},
+                              .calculate = {.left = 12, .top = 263, .width = 97, .height = 28},
+                              .result = {.left = 225, .top = 265, .width = 217, .height = 27}};
+        for (std::size_t index = 0; index < mostWorksheetBoxes; ++index) {
+            parts.valueLabels.at(index) = {.left = 12, .top = boxTops.at(index) + labelBelowBox, .width = 213, .height = 21};
+            parts.boxes.at(index) = {.left = 225, .top = boxTops.at(index), .width = 217, .height = 27};
+        }
+        return parts;
+    }();
+    return layout;
 }
 
 Rectangle bitRectangle(int bit)

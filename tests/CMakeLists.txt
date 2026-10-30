@@ -1,7 +1,9 @@
 # --- Version ------------------------------------------------------------
-# tests/CMakeLists.txt 0.5.12
+# tests/CMakeLists.txt 0.8.13
 
 # --- Version history ----------------------------------------------------
+# v0.8.13: test_reference_unitconversion, test_reference_datecalculation and test_reference_worksheets (the Windows 7
+#          Unit conversion, Date calculation and Worksheets results); the CLI shows the panels
 # v0.5.12: test_reference_history (the Windows 7 History, Digit grouping, Copy and Paste results); the CLI pastes
 # v0.4.11: test_reference_statistics (the Windows 7 Statistics results); the CLI shows the Statistics list
 # v0.3.10: test_keyboardlayouts (which layout a key comes from)
@@ -36,6 +38,9 @@ chrono_calc_test(test_reference_scientific chrono_calc_core)
 chrono_calc_test(test_reference_programmer chrono_calc_core)
 chrono_calc_test(test_reference_statistics chrono_calc_core)
 chrono_calc_test(test_reference_history chrono_calc_core)
+chrono_calc_test(test_reference_unitconversion chrono_calc_core)
+chrono_calc_test(test_reference_datecalculation chrono_calc_core)
+chrono_calc_test(test_reference_worksheets chrono_calc_core)
 
 # The command-line driver, checked on exit code, output and error text (cli_check.cmake)
 function(chrono_calc_cli_test name exit_code output)
@@ -51,6 +56,14 @@ chrono_calc_cli_test(cli_shows_the_result 0 "^display: 30\n" 12+3*2=)
 chrono_calc_cli_test(cli_shows_the_statistics_list 0 "count: 2\nvalues: 5 \\| 4\nselected: 1\n$" view.statistics 5 statistics.add 3 statistics.add 4 statistics.add statistics.select.1 statistics.delete)
 # A pasted text and History: the entries, the selected one, and Copy history
 chrono_calc_cli_test(cli_pastes_and_keeps_the_history 0 "display: 12\nexpression: \nerror: no\nmemory: no\nhistory: 2 \\* 3 \\| 4 \\* 3\nselected entry: 1\ncopied: 2 \\* 3\\\\n4 \\* 3\\\\n\n$" "edit.paste=2*3=4=" history.copy)
+# The Unit conversion panel: its type, From and To (5 Inch is 12.7 Centimeters)
+chrono_calc_cli_test(cli_shows_the_unit_conversion 0 "unit: Length\nfrom: 5 Inch\nto: 12.7 Centimeters\n$" view.unit_conversion unit.type.3 unit.from.6 unit.to.1 unit.input=5)
+# The Date calculation panel: the difference between two dates, and a date with years, months and days subtracted
+chrono_calc_cli_test(cli_shows_the_date_difference 0 "dates: 2026-01-15 to 2027-03-20\ndifference: 1 year, 2 months, 5 days\ndays: 429 days\n$" view.date_calculation date.difference_from=2026-01-15 date.difference_to=2027-03-20 date.calculate)
+chrono_calc_cli_test(cli_shows_the_shifted_date 0 "date: 2026-10-30 subtract 1 2 3\nresult: 2025-08-27\n$" view.date_calculation date.mode.1 date.shift_from=2026-10-30 date.subtract date.years=1 date.months=2 date.days=3 date.calculate)
+# A Worksheet: Mortgage's monthly payment, and a box left empty
+chrono_calc_cli_test(cli_shows_the_worksheet 0 "worksheet: Mortgage\ncalculate: Monthly payment\nPurchase price: 250000\nDown payment: 50000\nTerm \\(years\\): 30\nInterest rate \\(%\\): 4.5\nresult: 1013.370619651761\n$" view.mortgage worksheet.value.0=250000 worksheet.value.1=50000 worksheet.value.2=30 worksheet.value.3=4.5 worksheet.calculate)
+chrono_calc_cli_test(cli_shows_the_worksheet_message 0 "result: \nmessage: This value cannot be blank. \\(Fuel used \\(gallons\\)\\)\n$" view.fuel_economy_mpg worksheet.value.0=100 worksheet.calculate)
 set(CHRONO_CALC_CLI_ERROR "-DERROR=cannot read 'x' in 2x3")
 chrono_calc_cli_test(cli_refuses_an_unknown_argument 2 "^$" 2x3)
 unset(CHRONO_CALC_CLI_ERROR)

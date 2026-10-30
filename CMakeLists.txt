@@ -1,10 +1,11 @@
 cmake_minimum_required(VERSION 3.25)
-project(chrono-calc VERSION 0.5.12 LANGUAGES CXX)
+project(chrono-calc VERSION 0.8.13 LANGUAGES CXX)
 
 # --- Version ------------------------------------------------------------
-# CMakeLists.txt 0.5.12
+# CMakeLists.txt 0.8.13
 
 # --- Version history ----------------------------------------------------
+# v0.8.13: M6, M7 and M8 (versions 0.8.z): Unit conversion, Date calculation, the Worksheets
 # v0.5.12: M5 (versions 0.5.z): History, Digit grouping, Copy and Paste
 # v0.4.11: M4 (versions 0.4.z): the Statistics view
 # v0.3.10: The keyboard layouts in use (xkbcommon, xcb, wayland-client)

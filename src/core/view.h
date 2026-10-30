@@ -3,9 +3,10 @@
 #include <cstdint>
 
 // --- Version ------------------------------------------------------------
-// src/core/view.h 0.4.11
+// src/core/view.h 0.8.13
 
 // --- Version history ----------------------------------------------------
+// v0.8.13: The side panels beside the calculator (Basic, Unit conversion, Date calculation, the Worksheets)
 // v0.4.11: The Statistics view
 // v0.3.8: The Programmer view, its number bases and word sizes
 // v0.2.7: Initial: the views and the angle units
@@ -45,6 +46,19 @@ enum class WordSize : std::uint8_t
     Dword,
     Word,
     Byte,
+};
+
+// The panel beside the calculator (View > Basic, Unit conversion, Date calculation, Worksheets): one at a time, Basic
+// for none; the four Worksheets are one panel each
+enum class SidePanel : std::uint8_t
+{
+    Basic,
+    UnitConversion,
+    DateCalculation,
+    Mortgage,
+    VehicleLease,
+    FuelEconomyMpg,
+    FuelEconomyLitres,
 };
 
 }  // namespace chrono_calc

@@ -54,19 +54,19 @@ Versions (D-013): M0 is 0.0.z, M1 0.1.z, M2 0.2.z and so on; M9 finished is 1.0.
 
 | Task | What | Status |
 |---|---|---|
-| 6.1 | The side panel with every unit type and unit of Windows 7; our own code (D-010), factors checked against Microsoft's data | todo |
+| 6.1 | The side panel with every unit type and unit of Windows 7; our own code (D-010), factors checked against Microsoft's data | done (0.8.13, D-025): the Windows 7 results pass (`tests/test_reference_unitconversion.cpp`) |
 
 ## M7: Date calculation
 
 | Task | What | Status |
 |---|---|---|
-| 7.1 | The difference between two dates; add or subtract days; our own code (D-010) | todo |
+| 7.1 | The difference between two dates; add or subtract days; our own code (D-010) | done (0.8.13, D-026): the Windows 7 results pass (`tests/test_reference_datecalculation.cpp`) |
 
 ## M8: Worksheets
 
 | Task | What | Status |
 |---|---|---|
-| 8.1 | Mortgage, Vehicle lease, Fuel economy (mpg), Fuel economy (L/100 km); our own code on the engine's exact fractions (D-010), checked against Windows 7 | todo |
+| 8.1 | Mortgage, Vehicle lease, Fuel economy (mpg), Fuel economy (L/100 km); our own code on the engine's exact fractions (D-010), checked against Windows 7 | done (0.8.13, D-027): the Windows 7 results pass (`tests/test_reference_worksheets.cpp`) |
 
 ## M9: Release (1.0.z, the first public release; the repository goes public, D-007)
 

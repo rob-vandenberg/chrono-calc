@@ -7,9 +7,11 @@
 #include <vector>
 
 // --- Version ------------------------------------------------------------
-// src/core/menus.cpp 0.5.12
+// src/core/menus.cpp 0.8.13
 
 // --- Version history ----------------------------------------------------
+// v0.8.13: View > Unit conversion, Date calculation and the Worksheets are built (one dot for Basic, Unit conversion
+//          and Date calculation; the Worksheets have none)
 // v0.5.12: History (a tick, Ctrl+H), Digit grouping (a tick), Copy, Paste and the History submenu are built; the Edit
 //          menu of each view (D-024)
 // v0.4.11: View > Statistics is built
@@ -75,8 +77,9 @@ MenuItem keyShown(MenuItem menuItem)
 
 }  // namespace
 
-// The four views, Basic, History, Digit grouping and the Edit menu are built; every other item has no command yet and
-// shows greyed
+// The four views, Basic, Unit conversion, Date calculation, the Worksheets, History, Digit grouping and the Edit menu
+// are built; every other item has no command yet and shows greyed. The Worksheets have no dot of their own: while one
+// shows, Basic, Unit conversion and Date calculation have none (windows7-worksheets.md part A line 1).
 std::vector<Menu> standardMenus()
 {
     const Menu view{.title = "&View",
@@ -88,11 +91,12 @@ std::vector<Menu> standardMenus()
                   afterSeparator(ticked(item("Histor&y", "Ctrl+H", "view.history"))),
                   ticked(item("D&igit grouping", {}, "view.digit_grouping")),
                   afterSeparator(dotted(item("&Basic", "Ctrl+F4", "view.basic"), panelGroup, true)),
-                  dotted(item("&Unit conversion", "Ctrl+U"), panelGroup, false),
-                  dotted(item("&Date calculation", "Ctrl+E"), panelGroup, false),
+                  dotted(item("&Unit conversion", "Ctrl+U", "view.unit_conversion"), panelGroup, false),
+                  dotted(item("&Date calculation", "Ctrl+E", "view.date_calculation"), panelGroup, false),
                   submenu("&Worksheets",
-                          {entry("&Mortgage"), entry("&Vehicle lease"), entry("&Fuel economy (mpg)"),
-                           entry("F&uel economy (L/100 km)")}),
+                          {entry("&Mortgage", {}, "view.mortgage"), entry("&Vehicle lease", {}, "view.vehicle_lease"),
+                           entry("&Fuel economy (mpg)", {}, "view.fuel_economy_mpg"),
+                           entry("F&uel economy (L/100 km)", {}, "view.fuel_economy_litres")}),
               }};
     const Menu help{.title = "&Help",
               .items = {
