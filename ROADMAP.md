@@ -9,12 +9,14 @@ The engine survey behind this plan (2026-10-30, microsoft/calculator commit `79e
 | Task | What | Status |
 |---|---|---|
 | 0.0 | Project set up: git, documents, rules, push and release scripts, private GitHub repository | done |
-| 0.1 | Tools and skeleton: list what to install (Qt 6, CMake, clang-tidy); CMake with Qt 6 Widgets and Qt Test, warnings as errors, `.clang-tidy`, an empty window titled Chrono Calc, a first test, the layer check | todo |
+| 0.1 | Tools and skeleton: list what to install (Qt 6, CMake, clang-tidy); CMake with Qt 6 Widgets and Qt Test, warnings as errors, `.clang-tidy`, an empty window titled Chrono Calc, a first test, the layer check | done |
 | 0.2 | Engine import: copy the engine core from commit `79e1ac5` into `third_party/calculator/` with `LICENSE` and `SOURCE.md`, our own replacement for `pch.h` in `core`; build with GCC and Clang; port Microsoft's engine tests to Qt Test | todo |
 | 0.3 | Wrapper and commands: connect the engine to `core` (`ICalcDisplay`), the command registry, the engine's texts (error messages) in the Windows 7 wording | todo |
 | 0.4 | A command-line test driver: runs any key sequence without a screen, for tests and quick result checks | todo |
 
-## M1: Standard view (the first usable version; then the repository goes public, D-007)
+Versions (D-013): M0 is 0.0.z, M1 0.1.z, M2 0.2.z and so on; M9 finished is 1.0.z, the first public release, and the repository goes public then (D-007). The owner says when y changes.
+
+## M1: Standard view (the first usable version)
 
 | Task | What | Status |
 |---|---|---|
@@ -66,7 +68,7 @@ The engine survey behind this plan (2026-10-30, microsoft/calculator commit `79e
 |---|---|---|
 | 8.1 | Mortgage, Vehicle lease, Fuel economy (mpg), Fuel economy (L/100 km); our own code on the engine's exact fractions (D-010), checked against Windows 7 | todo |
 
-## M9: Release
+## M9: Release (1.0.z, the first public release; the repository goes public, D-007)
 
 | Task | What | Status |
 |---|---|---|

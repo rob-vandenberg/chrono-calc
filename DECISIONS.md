@@ -18,6 +18,11 @@ Every design decision as it stands now, by topic, short. Every decision here was
 
 - **D-010** Only the engine core is imported: `CEngine`, `Ratpack`, `CalculatorManager`, `CalculatorHistory` and their headers; its `pch.h` is replaced by our own in `core`. `UnitConverter` is left out (it needs the Windows-only PPL tasks, and its unit lists are Windows 10's). Unit conversion, Date calculation, the Statistics view and the Worksheets are our own code in `core`, because Windows 10 has none of them in C++; every result they give is computed with the engine's exact fractions (`Rational`), never with floating-point maths. Microsoft's C++ engine tests are ported to Qt Test to prove the engine works the same on Linux. (2026-10-30)
 
+## Build and checks
+
+- **D-011** The layers are `third_party` <- `core` <- `ui` <- `app`: a layer includes only from the layers below it; `core` is plain C++ without Qt. `tests/test_layers.cpp` enforces it (OR-13) by reading every `#include` in `src/`. (2026-10-30)
+- **D-012** Two builds, GCC and Clang (`CMakePresets.json`: `gcc`, `clang`, Ninja, `build/gcc`, `build/clang`). clang-tidy runs during every build of our own code with the families bugprone, clang-analyzer, cppcoreguidelines, modernize, performance, readability and misc, every finding an error; off: trailing return types, magic numbers, identifier length, owning-memory (Qt parents own their children); `misc-include-cleaner` skips Qt's own headers. Each reason is in `.clang-tidy`. clang-tidy is the developer's gate on this computer; the release builds in containers (D-009) run without it (`-DCHRONO_CALC_CLANG_TIDY=OFF`). (2026-10-30)
+
 ## Names and versions
 
 - **D-003** Names: Chrono Calc (title), `chrono-calc` (identifier, repository, files), `chrono_calc` (C++ namespace), Calc (the application menu entry). (2026-10-30)
@@ -27,6 +32,8 @@ Every design decision as it stands now, by topic, short. Every decision here was
 
 - **D-009** The `.deb` is built in a Debian 12 container and the `.rpm` in an AlmaLinux 9 container (the oldest supported systems; a C++ program is linked to the libraries of the system it is built on, and one built on the oldest runs on the newer ones), with podman. Each is tested in a bare Ubuntu 24.04 or Fedora 43 container as a normal user before the upload. The private `build-release.sh` does all of it; only the owner runs it, for milestone versions. (2026-10-30)
 
+- **D-013** Version numbers (the owner, 2026-10-30): the foundation (M0) is 0.0.z; M1 is 0.1.z, M2 0.2.z, M3 0.3.z and so on; the first public release is 1.0.z, when M9 is finished. Only the owner changes x and y and says when; z keeps counting and never resets (0.0.5 is followed by 0.1.6). (2026-10-30)
+
 ## GitHub
 
-- **D-007** The repository `rob-vandenberg/chrono-calc` is private until the Standard view (M1) works; then the owner makes it public. (2026-10-30)
+- **D-007** The repository `rob-vandenberg/chrono-calc` stays private through M8; the owner makes it public with the first public release, 1.0.z, when M9 is finished (D-013). (2026-10-30)

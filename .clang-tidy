@@ -1,0 +1,30 @@
+# .clang-tidy 0.0.2
+#
+# The hard gate on our own code (AGENTS.md 3, D-012): every finding is an error. third_party/ is never checked.
+# Switched off, each for its reason:
+#   modernize-use-trailing-return-type     a style choice; "int f()" is the plain form
+#   readability-magic-numbers,
+#   cppcoreguidelines-avoid-magic-numbers  a calculator is full of plain numbers (button ids, digits, sizes)
+#   readability-identifier-length          short names like x, i, id are clear in context
+#   cppcoreguidelines-owning-memory        Qt windows own their children: "new QWidget(parent)" is correct Qt
+# Narrowed:
+#   misc-include-cleaner                   skips Qt's own headers: Qt is used through its <QClass> headers, which forward
+#                                          to internal files (qtmetamacros.h, qtestcase.h) that the check would demand
+Checks: >
+  -*,
+  bugprone-*,
+  clang-analyzer-*,
+  cppcoreguidelines-*,
+  modernize-*,
+  performance-*,
+  readability-*,
+  misc-*,
+  -modernize-use-trailing-return-type,
+  -readability-magic-numbers,
+  -cppcoreguidelines-avoid-magic-numbers,
+  -readability-identifier-length,
+  -cppcoreguidelines-owning-memory
+CheckOptions:
+  misc-include-cleaner.IgnoreHeaders: 'qt6/.*'
+WarningsAsErrors: '*'
+HeaderFilterRegex: '.*/src/.*'
