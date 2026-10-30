@@ -8,9 +8,10 @@
 #include <unordered_map>
 
 // --- Version ------------------------------------------------------------
-// src/core/enginetexts.cpp 0.0.4
+// src/core/enginetexts.cpp 0.1.5
 
 // --- Version history ----------------------------------------------------
+// v0.1.5: Windows 7's names in the expression line (sqrt, reciproc); the separators come from the caller
 // v0.0.4: Initial: a text for every text number the engine can look up (D-015)
 
 namespace chrono_calc {
@@ -50,7 +51,7 @@ const std::unordered_map<std::wstring_view, std::wstring_view>& texts()
         {L"27", L"tanh"},
         {L"28", L"ln"},
         {L"29", L"log"},
-        {L"30", L"√"},
+        {L"30", L"sqrt"},  // Windows 7 (Microsoft's: √)
         {L"35", L"dms"},
         {L"37", L"10^"},
         {L"38", L"%"},
@@ -88,11 +89,11 @@ const std::unordered_map<std::wstring_view, std::wstring_view>& texts()
         {L"88", L"e^"},
         {L"89", L"10^"},
         {L"9", L"Lsh"},
-        {L"90", L"√"},
+        {L"90", L"sqrt"},  // Windows 7 (Microsoft's: √)
         {L"91", L"sqr"},
         {L"92", L"cube"},
         {L"94", L"fact"},
-        {L"95", L"1/"},
+        {L"95", L"reciproc"},  // Windows 7 (Microsoft's: 1/)
         {L"96", L"degrees"},
         {L"97", L"negate"},
         {L"99", L"Cannot divide by zero"},
@@ -177,14 +178,23 @@ const std::unordered_map<std::wstring_view, std::wstring_view>& texts()
 
 }  // namespace
 
+EngineTexts::EngineTexts(Separators separators)
+    : m_separators(separators)
+{
+}
+
+void EngineTexts::setSeparators(Separators separators)
+{
+    m_separators = separators;
+}
+
 std::wstring EngineTexts::GetCEngineString(std::wstring_view id)
 {
-    // The number separators: en-US for now; the user's own settings come with Digit grouping (M5)
     if (id == L"sDecimal") {
-        return L".";
+        return {m_separators.decimal};
     }
     if (id == L"sThousand") {
-        return L",";
+        return {m_separators.thousands};
     }
     if (id == L"sGrouping") {
         return L"3;0";

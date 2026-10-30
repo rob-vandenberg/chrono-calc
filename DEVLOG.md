@@ -40,3 +40,10 @@ Append-only. One entry per completed task, newest last.
 - Windows 7 reference data collected through the Windows computer's Claude session: layout, menus, 20 results (`tests/reference/windows7-standard.md`). 19 of 20 numbers match; differences in percent after multiply/divide, in the expression line and in the decimal separator are for task 1.5.
 - A fresh review found no bug and four weak tests (memory replace, CLI exit codes, CLI error text, the start value); all fixed: `memoryPlaces()`, `tests/cli_check.cmake`, the display starts empty until the engine reports.
 - 11 tests pass with GCC 15, Clang 21 and on Debian 12.
+
+## 2026-10-30: 0.1.5, M1 core (task 1.5, first part)
+
+- Compared our engine with the 20 Windows 7 reference results: 19 numbers matched; percent after * and / differed (Windows 10's rule), and the expression line differed in form.
+- The wrapper now drives `CCalcEngine` directly: the engine's one memory register is Windows 7's memory. Windows 7 percent with the engine's own formula and `Rational`; the Windows 7 expression line; regional separators (D-017).
+- Found a fault in Microsoft's engine through the reference test: `m_decimalSeparator` has no start value, so a second engine with a comma separator could read "0,1" as an overflow. Settled in the wrapper after construction, engine unchanged.
+- `tests/test_reference_standard.cpp`: all 20 Windows 7 results pass, with a comma separator as on the Windows computer. 12 test programs pass with GCC.

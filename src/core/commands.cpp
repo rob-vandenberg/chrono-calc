@@ -9,9 +9,10 @@
 #include <vector>
 
 // --- Version ------------------------------------------------------------
-// src/core/commands.cpp 0.0.4
+// src/core/commands.cpp 0.1.5
 
 // --- Version history ----------------------------------------------------
+// v0.1.5: The memory commands are the engine's own (its one memory register, as in Windows 7)
 // v0.0.4: Initial: the command registry with the commands of the Standard view (D-015)
 
 namespace chrono_calc {
@@ -60,11 +61,11 @@ constexpr std::array registry = {
     engine("sqrt", Command::CommandSQRT),
     engine("percent", Command::CommandPERCENT),
     engine("reciprocal", Command::CommandREC),
-    own("memory.clear", CommandKind::MemoryClear),
-    own("memory.recall", CommandKind::MemoryRecall),
-    own("memory.store", CommandKind::MemoryStore),
-    own("memory.add", CommandKind::MemoryAdd),
-    own("memory.subtract", CommandKind::MemorySubtract),
+    engine("memory.clear", Command::CommandMCLEAR),
+    engine("memory.recall", Command::CommandRECALL),
+    engine("memory.store", Command::CommandSTORE),
+    engine("memory.add", Command::CommandMPLUS),
+    engine("memory.subtract", Command::CommandMMINUS),
     own("view.standard", CommandKind::ViewStandard),
 };
 

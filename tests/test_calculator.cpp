@@ -8,15 +8,15 @@
 
 #include "Header Files/EngineStrings.h"
 
-#include <cstddef>
 #include <initializer_list>
 #include <string>
 #include <string_view>
 
 // --- Version ------------------------------------------------------------
-// tests/test_calculator.cpp 0.0.4
+// tests/test_calculator.cpp 0.1.5
 
 // --- Version history ----------------------------------------------------
+// v0.1.5: The one memory is the engine's own register; the start value comes from the engine
 // v0.0.4: Initial: the engine wrapper, the command registry, the typed keys and the engine texts
 
 namespace {
@@ -46,7 +46,7 @@ class TestCalculator : public QObject
 private slots:
     static void startsAtZero()
     {
-        const chrono_calc::Calculator calculator;
+        chrono_calc::Calculator calculator;
         QCOMPARE(text(calculator.display()), QStringLiteral("0"));
         QVERIFY(!calculator.isError());
         QVERIFY(!calculator.hasMemory());
@@ -69,8 +69,36 @@ private slots:
     {
         chrono_calc::Calculator calculator;
         after(calculator, {"digit.2", "add"});
-        const QString expression = text(calculator.expression());
-        QVERIFY2(expression.contains(QLatin1Char('2')) && expression.contains(QLatin1Char('+')), qPrintable(expression));
+        QCOMPARE(text(calculator.expression()), QStringLiteral("2 +"));
+        // Another operator right after one replaces it
+        after(calculator, {"multiply"});
+        QCOMPARE(text(calculator.expression()), QStringLiteral("2 *"));
+        QCOMPARE(text(after(calculator, {"digit.3", "equals"})), QStringLiteral("6"));
+    }
+
+    // While an error shows, CE clears everything, as C does: nothing of the old line or the old operator stays
+    static void clearEntryAfterAnErrorClearsAll()
+    {
+        chrono_calc::Calculator calculator;
+        after(calculator, {"digit.1", "divide", "digit.0", "equals", "clear_entry", "digit.5", "add"});
+        QCOMPARE(text(calculator.expression()), QStringLiteral("5 +"));
+        QCOMPARE(text(after(calculator, {"digit.2", "multiply", "digit.0", "reciprocal", "clear_entry", "digit.5", "percent"})),
+                 QStringLiteral("0"));
+        QCOMPARE(text(calculator.expression()), QStringLiteral("0"));
+    }
+
+    // The Windows 7 percent after * uses the memory register for a moment; the user's memory stays as it was
+    static void percentAfterMultiplyKeepsTheMemory()
+    {
+        chrono_calc::Calculator calculator;
+        QCOMPARE(text(after(calculator, {"digit.7", "memory.store", "clear", "digit.2", "multiply", "digit.3", "percent"})),
+                 QStringLiteral("0.06"));
+        QCOMPARE(text(calculator.expression()), QStringLiteral("2 * 0.06"));
+        // Backspace changes nothing on a percent result
+        QCOMPARE(text(after(calculator, {"backspace"})), QStringLiteral("0.06"));
+        QCOMPARE(text(calculator.expression()), QStringLiteral("2 * 0.06"));
+        QCOMPARE(text(after(calculator, {"equals"})), QStringLiteral("0.12"));
+        QCOMPARE(text(after(calculator, {"memory.recall"})), QStringLiteral("7"));
     }
 
     static void divisionByZeroIsAnErrorWithAText()
@@ -90,8 +118,9 @@ private slots:
         after(calculator, {"digit.5", "memory.store", "clear", "digit.7", "memory.store", "clear", "memory.recall"});
         QCOMPARE(text(calculator.display()), QStringLiteral("7"));
         QVERIFY(calculator.hasMemory());
-        QCOMPARE(calculator.memoryPlaces(), std::size_t{1});
-        after(calculator, {"memory.clear"});
+        QCOMPARE(text(after(calculator, {"memory.subtract", "memory.recall"})), QStringLiteral("0"));
+        QVERIFY2(!calculator.hasMemory(), "7 - 7 leaves 0 in memory: no M");
+        after(calculator, {"digit.4", "memory.store", "memory.clear"});
         QVERIFY(!calculator.hasMemory());
     }
 

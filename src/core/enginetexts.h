@@ -6,12 +6,20 @@
 #include <string_view>
 
 // --- Version ------------------------------------------------------------
-// src/core/enginetexts.h 0.0.4
+// src/core/enginetexts.h 0.1.5
 
 // --- Version history ----------------------------------------------------
+// v0.1.5: The number separators are given by the caller (the computer's regional settings)
 // v0.0.4: Initial: the engine's texts (D-015)
 
 namespace chrono_calc {
+
+// The number separators of the computer's regional settings
+struct Separators
+{
+    wchar_t decimal = L'.';
+    wchar_t thousands = L',';
+};
 
 // The texts the engine shows (error messages, operator names in the expression line) and the number separators.
 // Every text number the engine can look up has a text: the engine stores a lookup key that points to a temporary
@@ -21,7 +29,12 @@ namespace chrono_calc {
 class EngineTexts : public CalculationManager::IResourceProvider
 {
 public:
+    explicit EngineTexts(Separators separators = {});
     std::wstring GetCEngineString(std::wstring_view id) override;
+    void setSeparators(Separators separators);
+
+private:
+    Separators m_separators;
 };
 
 }  // namespace chrono_calc

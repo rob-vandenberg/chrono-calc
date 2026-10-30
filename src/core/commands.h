@@ -8,22 +8,18 @@
 #include <vector>
 
 // --- Version ------------------------------------------------------------
-// src/core/commands.h 0.0.4
+// src/core/commands.h 0.1.5
 
 // --- Version history ----------------------------------------------------
+// v0.1.5: The memory commands are the engine's own (its one memory register, as in Windows 7)
 // v0.0.4: Initial: the command registry with the commands of the Standard view (D-015)
 
 namespace chrono_calc {
 
-// What a command does: one engine command, or a memory or view action of the calculator itself
+// What a command does: one engine command, or a view change of the calculator itself
 enum class CommandKind : std::uint8_t
 {
     Engine,
-    MemoryClear,
-    MemoryRecall,
-    MemoryStore,
-    MemoryAdd,
-    MemorySubtract,
     ViewStandard,
 };
 

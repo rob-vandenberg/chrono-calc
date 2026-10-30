@@ -24,7 +24,7 @@ Versions (D-013): M0 is 0.0.z, M1 0.1.z, M2 0.2.z and so on; M9 finished is 1.0.
 | 1.2 | Buttons and keys: the Standard grid and every keyboard key | todo |
 | 1.3 | Memory: MC, MR, MS, M+, M− | todo |
 | 1.4 | Window behaviour: fixed size per view, the position remembered | todo |
-| 1.5 | Reference check: a table of key presses with the results the real Windows 7 Calculator shows, run as tests | todo |
+| 1.5 | Reference check: a table of key presses with the results the real Windows 7 Calculator shows, run as tests | doing: the 20 results pass (`tests/test_reference_standard.cpp`, D-017); still to check against Windows 7 after the window exists: the keyboard keys, MR on empty memory, M after storing 0 |
 
 ## M2: Scientific view
 
