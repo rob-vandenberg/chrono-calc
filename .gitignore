@@ -1,0 +1,19 @@
+# build output and packages
+build/
+dist/
+
+# working scripts and notes of the sessions (private)
+scratchpad/
+
+# hand-over notes between sessions (private)
+PROMPT-NEW-SESSION.md
+
+# the owner's rules (private)
+OWNER-RULES.md
+
+# the push and release scripts (private)
+gitpush.sh
+build-release.sh
+
+# this computer's own Claude Code settings (private)
+.claude/settings.local.json
