@@ -34,9 +34,10 @@
 #include <vector>
 
 // --- Version ------------------------------------------------------------
-// src/core/calculator.cpp 0.8.13
+// src/core/calculator.cpp 0.9.14
 
 // --- Version history ----------------------------------------------------
+// v0.9.14: Help > View Help and About change nothing and keep an edit open
 // v0.8.13: The side panel (View > Basic, Unit conversion, Date calculation), kept over a view change; the Unit
 //          conversion panel: its lists, the From box and the To result on the engine's exact fractions (D-025); the Date
 //          calculation panel (D-026); the Worksheets, worked in decimal and the view's precision given back after
@@ -490,6 +491,8 @@ bool Calculator::run(std::string_view commandId, std::wstring_view text)
     case CommandKind::StatisticsApplyEdit:
     case CommandKind::StatisticsEdit:
     case CommandKind::Copy:
+    case CommandKind::HelpView:
+    case CommandKind::HelpAbout:
         break;
     default:
         m_edited.reset();
@@ -582,6 +585,10 @@ bool Calculator::runOwnCommand(const CommandTarget& target, std::wstring_view te
             m_worksheetCalculator.run(*worksheet, target, text);
             m_engine->ChangePrecision(precisionOf(m_view));
         }
+        return true;
+    case CommandKind::HelpView:
+    case CommandKind::HelpAbout:
+        // The window opens the browser or the About box; nothing here changes
         return true;
     case CommandKind::ViewStandard:
         switchView(View::Standard);

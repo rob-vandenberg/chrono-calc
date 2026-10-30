@@ -21,9 +21,10 @@ class QKeyEvent;
 class QMenu;
 
 // --- Version ------------------------------------------------------------
-// src/ui/mainwindow.h 0.8.13
+// src/ui/mainwindow.h 0.9.14
 
 // --- Version history ----------------------------------------------------
+// v0.9.14: Edit > History greyed while the history is empty; Help > View Help and About Chrono Calc
 // v0.8.13: The side panel beside every view (View > Basic, Unit conversion, Date calculation, Worksheets),
 //          remembered; the Unit conversion and Date calculation panels and the Worksheets
 // v0.5.12: History (the list in a taller display, the edit box), Digit grouping, Copy and Paste with the clipboard,
@@ -145,11 +146,15 @@ private:
     std::vector<QAction*> m_panelActions;
     QMenu* m_editMenu = nullptr;
     // The menu items whose state follows the calculator: History and Digit grouping (ticks), Paste (greyed without text
-    // on the clipboard), Edit (Recalculate while editing)
+    // on the clipboard), Edit (Recalculate while editing), Copy history and Clear (greyed while the history is empty),
+    // Cancel edit (greyed unless a history entry is edited)
     QAction* m_historyAction = nullptr;
     QAction* m_groupingAction = nullptr;
     QAction* m_pasteAction = nullptr;
     QAction* m_editAction = nullptr;
+    QAction* m_historyCopyAction = nullptr;
+    QAction* m_historyClearAction = nullptr;
+    QAction* m_cancelEditAction = nullptr;
 };
 
 }  // namespace chrono_calc

@@ -1,0 +1,12 @@
+[Desktop Entry]
+Type=Application
+Name=Calc
+GenericName=Calculator
+Comment=Chrono Calc, the calculator
+Exec=chrono-calc
+TryExec=chrono-calc
+Icon=chrono-calc
+Terminal=false
+Categories=Utility;Calculator;Qt;
+Keywords=calculator;scientific;programmer;statistics;unit conversion;date;mortgage;
+StartupWMClass=chrono-calc

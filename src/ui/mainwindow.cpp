@@ -7,6 +7,7 @@
 #include <QClipboard>
 #include <QCloseEvent>
 #include <QDate>
+#include <QDesktopServices>
 #include <QGuiApplication>
 #include <QKeyEvent>
 #include <QKeySequence>
@@ -27,6 +28,7 @@
 #include <QSize>
 #include <QString>
 #include <QStringList>
+#include <QUrl>
 #include <QVariant>
 #include <QWidget>
 
@@ -37,12 +39,15 @@
 #include "core/keys.h"
 #include "core/menus.h"
 #include "core/layout.h"
+#include "core/version.h"
 #include "core/view.h"
 #include "core/worksheets.h"
+#include "ui/aboutbox.h"
 #include "ui/calcbutton.h"
 #include "ui/displaypanel.h"
 #include "ui/keyboardlayouts.h"
 #include "ui/look.h"
+#include "ui/programicon.h"
 #include "ui/sidepanels.h"
 #include "ui/statisticsparts.h"
 #include "ui/viewparts.h"
@@ -57,9 +62,11 @@
 #include <vector>
 
 // --- Version ------------------------------------------------------------
-// src/ui/mainwindow.cpp 0.8.13
+// src/ui/mainwindow.cpp 0.9.14
 
 // --- Version history ----------------------------------------------------
+// v0.9.14: Edit > History: Copy history, Edit and Clear greyed while the history is empty, Cancel edit unless an entry
+//          is edited; Help > View Help opens the project's page, About Chrono Calc (F1) the About box; the program's icon
 // v0.8.13: The side panel beside every view (View > Basic, Unit conversion, Date calculation, Worksheets), remembered;
 //          the Unit conversion panel (D-025), the Date calculation panel (D-026) and the Worksheets (D-027) with
 //          Windows 7's keys and Tab order
@@ -259,6 +266,7 @@ MainWindow::MainWindow(const Separators& separators, QWidget* parent)
     , m_display(new DisplayPanel(m_area))
 {
     setWindowTitle(QStringLiteral("Chrono Calc"));
+    setWindowIcon(programIcon());
     buildMenus();
     m_area->setFocusPolicy(Qt::StrongFocus);
     setCentralWidget(m_area);
@@ -341,6 +349,9 @@ void MainWindow::buildEditMenu()
     m_editMenu->clear();
     m_pasteAction = nullptr;
     m_editAction = nullptr;
+    m_historyCopyAction = nullptr;
+    m_historyClearAction = nullptr;
+    m_cancelEditAction = nullptr;
     addMenuItems(m_editMenu, editMenu(m_calculator.view()).items);
     updatePaste();
 }
@@ -420,10 +431,23 @@ void MainWindow::connectMenuAction(QAction* action, std::string_view commandId)
         m_pasteAction = action;
     } else if (commandId == "history.edit" || commandId == "statistics.edit") {
         m_editAction = action;
+    } else if (commandId == "history.copy") {
+        m_historyCopyAction = action;
+    } else if (commandId == "history.clear") {
+        m_historyClearAction = action;
+    } else if (commandId == "history.cancel_edit") {
+        m_cancelEditAction = action;
     }
     connect(action, &QAction::triggered, this, [this, commandId] {
         if (commandId == "edit.paste") {
             paste();
+        } else if (commandId == "help.view") {
+            QDesktopServices::openUrl(QUrl(QString::fromUtf8(repositoryAddress().data(),
+                                                              static_cast<qsizetype>(repositoryAddress().size()))));
+        } else if (commandId == "help.about") {
+            auto* box = new AboutBox(this);
+            box->setAttribute(Qt::WA_DeleteOnClose);
+            box->open();
         } else if (commandId == "history.edit" && m_editBox != nullptr) {
             takeEdit(m_editBox->text());  // Recalculate (Windows 7)
         } else {
@@ -934,11 +958,25 @@ void MainWindow::showMenuStates()
     if (m_groupingAction != nullptr) {
         m_groupingAction->setChecked(m_calculator.isDigitGrouping());
     }
+    // Edit > History: Copy history and Clear are greyed while the view's history is empty, Edit unless History shows
+    // with an entry chosen (it does nothing otherwise), Cancel edit unless an entry is edited
+    const bool editingHistory = m_calculator.editedHistoryEntry().has_value() && m_editBox != nullptr;
+    const bool hasHistory = !m_calculator.historyEntries().empty();
     if (m_editAction != nullptr) {
         // While a history entry is edited, Edit reads Recalculate (=); the Statistics view's Edit is greyed then
-        const bool editingHistory = m_calculator.editedHistoryEntry().has_value() && m_editBox != nullptr;
         m_editAction->setText(editingHistory ? tr("&Recalculate") + QStringLiteral("\t=") : tr("&Edit") + QStringLiteral("\tF2"));
-        m_editAction->setEnabled(!m_calculator.editedStatisticsValue());
+        const bool historyEdit = m_calculator.view() == View::Standard || m_calculator.view() == View::Scientific;
+        const bool canEdit = m_calculator.isHistoryShown() && m_calculator.selectedHistoryEntry().has_value();
+        m_editAction->setEnabled(historyEdit ? editingHistory || canEdit : !m_calculator.editedStatisticsValue());
+    }
+    if (m_historyCopyAction != nullptr) {
+        m_historyCopyAction->setEnabled(hasHistory);
+    }
+    if (m_historyClearAction != nullptr) {
+        m_historyClearAction->setEnabled(hasHistory);
+    }
+    if (m_cancelEditAction != nullptr) {
+        m_cancelEditAction->setEnabled(editingHistory);
     }
     for (QAction* action : m_viewActions) {
         action->setChecked(action->data().toString() == QStringLiteral("view.") + nameOf(m_calculator.view()));

@@ -1,7 +1,9 @@
 # --- Version ------------------------------------------------------------
-# src/CMakeLists.txt 0.8.13
+# src/CMakeLists.txt 0.9.14
 
 # --- Version history ----------------------------------------------------
+# v0.9.14: ui/aboutbox (Help > About Chrono Calc), ui/programicon (the icon, drawn with QtSvg from packaging/chrono-calc.svg,
+#          built into the program)
 # v0.8.13: core/unitconversion (the units), core/unitconverter (the panel), ui/sidepanels (the panels beside the calculator);
 #          core/calendar, core/datecalculation, core/datecalculator (the Date calculation panel); core/worksheets,
 #          core/worksheetcalculator (the Worksheets)
@@ -27,9 +29,13 @@ chrono_calc_strict(chrono_calc_core)
 # ui: Qt Widgets, on top of core
 add_library(chrono_calc_ui STATIC ui/mainwindow.cpp ui/mainwindow.h ui/calcbutton.cpp ui/calcbutton.h
     ui/displaypanel.cpp ui/displaypanel.h ui/look.cpp ui/look.h ui/fonts.cpp ui/fonts.h ui/viewparts.cpp ui/viewparts.h
-    ui/keyboardlayouts.cpp ui/keyboardlayouts.h ui/statisticsparts.cpp ui/statisticsparts.h ui/sidepanels.cpp ui/sidepanels.h)
+    ui/keyboardlayouts.cpp ui/keyboardlayouts.h ui/statisticsparts.cpp ui/statisticsparts.h ui/sidepanels.cpp ui/sidepanels.h
+    ui/aboutbox.cpp ui/aboutbox.h ui/programicon.cpp ui/programicon.h)
 set_target_properties(chrono_calc_ui PROPERTIES AUTOMOC ON)
-target_link_libraries(chrono_calc_ui PUBLIC chrono_calc_core Qt6::Widgets)
+target_link_libraries(chrono_calc_ui PUBLIC chrono_calc_core Qt6::Widgets Qt6::Svg)
+# The program's icon, the same file the packages install, built into the program
+qt_add_resources(chrono_calc_ui "programicon" PREFIX "/" BASE "${PROJECT_SOURCE_DIR}/packaging"
+    FILES "${PROJECT_SOURCE_DIR}/packaging/chrono-calc.svg")
 # The keyboard layouts of Linux (ui/keyboardlayouts): XKB, and the X11 and Wayland connections that give them
 find_package(PkgConfig REQUIRED)
 pkg_check_modules(CHRONO_CALC_KEYBOARD REQUIRED IMPORTED_TARGET xkbcommon xcb wayland-client)

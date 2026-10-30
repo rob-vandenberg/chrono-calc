@@ -13,9 +13,10 @@
 #include <vector>
 
 // --- Version ------------------------------------------------------------
-// src/core/commands.cpp 0.8.13
+// src/core/commands.cpp 0.9.14
 
 // --- Version history ----------------------------------------------------
+// v0.9.14: help.view and help.about (Help > View Help, About Chrono Calc)
 // v0.8.13: The side panels (view.basic, view.unit_conversion, view.date_calculation and the four Worksheets), the Unit
 //          conversion panel (unit.type.N, unit.from.N, unit.to.N, unit.input), the Date calculation panel (date.mode.N
 //          and the date.* commands) and the Worksheets (worksheet.choose.N, worksheet.value.N, worksheet.calculate)
@@ -273,6 +274,9 @@ constexpr std::array registry = {
     own("date.calculate", CommandKind::DateCalculate),
     // The Worksheets (their lists' items are "worksheet.choose.N", their values "worksheet.value.N", with a text)
     own("worksheet.calculate", CommandKind::WorksheetCalculate),
+    // Help
+    own("help.view", CommandKind::HelpView),
+    own("help.about", CommandKind::HelpAbout),
 };
 
 // The commands that carry an index in their id ("statistics.select.N", "history.select.N", "unit.type.N", "unit.from.N",

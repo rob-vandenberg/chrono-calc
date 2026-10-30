@@ -3,9 +3,10 @@
 #include <cstdint>
 
 // --- Version ------------------------------------------------------------
-// src/core/colours.h 0.8.13
+// src/core/colours.h 0.9.14
 
 // --- Version history ----------------------------------------------------
+// v0.9.14: The About box: its white face, the blue name in the top band, the thin grey line, the text and the links
 // v0.8.13: The side panel and the Unit conversion panel's labels, lists and boxes; the Date calculation panel's date
 //          boxes and Calculate button; the Worksheets' hint in an empty box and their message balloon
 // v0.5.12: The edit box of History and the Statistics list
@@ -134,6 +135,13 @@ inline constexpr Colour panelButtonEdge{.red = 0x00, .green = 0x78, .blue = 0xD7
 inline constexpr Colour panelHint{.red = 0x6D, .green = 0x6D, .blue = 0x6D};
 inline constexpr Colour panelBalloonFace{.red = 0xFF, .green = 0xFF, .blue = 0xFF};
 inline constexpr Colour panelBalloonEdge{.red = 0x76, .green = 0x76, .blue = 0x76};
+// The About box (Help > About Chrono Calc, D-028), laid out like Windows 10's About box: white, the name in the top band
+// in the icon's blue, a thin grey line below the band, black text, the links in the icon's blue (our own, not measured)
+inline constexpr Colour aboutFace{.red = 0xFF, .green = 0xFF, .blue = 0xFF};
+inline constexpr Colour aboutTitle{.red = 0x2B, .green = 0x7B, .blue = 0xD6};
+inline constexpr Colour aboutLine{.red = 0xD0, .green = 0xD0, .blue = 0xD0};
+inline constexpr Colour aboutText{.red = 0x00, .green = 0x00, .blue = 0x00};
+inline constexpr Colour aboutLink{.red = 0x2B, .green = 0x7B, .blue = 0xD6};
 // A button under the mouse: a warm golden glow
 inline constexpr Colour buttonHoverBorder{.red = 0xC2, .green = 0x9B, .blue = 0x45};
 inline constexpr Colour buttonHoverTop{.red = 0xFF, .green = 0xF4, .blue = 0xD4};

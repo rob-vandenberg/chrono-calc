@@ -7,9 +7,10 @@
 #include <vector>
 
 // --- Version ------------------------------------------------------------
-// src/core/menus.cpp 0.8.13
+// src/core/menus.cpp 0.9.14
 
 // --- Version history ----------------------------------------------------
+// v0.9.14: Help > View Help (the repository, no key) and About Chrono Calc (F1, D-028) are built
 // v0.8.13: View > Unit conversion, Date calculation and the Worksheets are built (one dot for Basic, Unit conversion
 //          and Date calculation; the Worksheets have none)
 // v0.5.12: History (a tick, Ctrl+H), Digit grouping (a tick), Copy, Paste and the History submenu are built; the Edit
@@ -77,8 +78,8 @@ MenuItem keyShown(MenuItem menuItem)
 
 }  // namespace
 
-// The four views, Basic, Unit conversion, Date calculation, the Worksheets, History, Digit grouping and the Edit menu
-// are built; every other item has no command yet and shows greyed. The Worksheets have no dot of their own: while one
+// Every item is built. Help > View Help opens the project's page; About Chrono Calc takes F1, which Windows 7 gave to
+// Help (D-028). The Worksheets have no dot of their own: while one
 // shows, Basic, Unit conversion and Date calculation have none (windows7-worksheets.md part A line 1).
 std::vector<Menu> standardMenus()
 {
@@ -100,8 +101,8 @@ std::vector<Menu> standardMenus()
               }};
     const Menu help{.title = "&Help",
               .items = {
-                  item("&View Help", "F1"),
-                  afterSeparator(item("&About Chrono Calc")),
+                  item("&View Help", {}, "help.view"),
+                  afterSeparator(item("&About Chrono Calc", "F1", "help.about")),
               }};
     return {view, editMenu(View::Standard), help};
 }

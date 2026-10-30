@@ -1,11 +1,11 @@
 # STATUS.md
 
-**Version:** 0.8.13 (M6, M7 and M8 together)
-**Date:** 2026-10-30
+**Version:** 0.9.14 (M9: Help, About, the icon, the packages)
+**Date:** 2026-10-31
 
 ## Where we are
 
-M0 is done (0.0.1 to 0.0.4). M1 (the Standard view) is done (0.1.5, 0.1.6). M2 (the Scientific view) is done (0.2.7). M3 (the Programmer view) is done (0.3.8); 0.3.9 and 0.3.10 keep the letter keys working on keyboards without Latin letters as Windows 7 does (D-022). M4 (the Statistics view) is done (0.4.11, D-023). **M5 (History, Digit grouping, Edit) is done** (0.5.12, D-024). **M6 (Unit conversion), M7 (Date calculation) and M8 (Worksheets) are done** (0.8.13, D-025, D-026, D-027): built one after the other in chrono-calc (5), (6) and (7), their tests run together at the end, as the owner ordered; reviewed in four rounds until one found nothing. The owner told Claude to continue on its own through each milestone, pushing after each reviewed step (OR-5), and to move to a new chat when the token estimate passes 500,000 (with Remote Control on and the chat directly in the Chrono Calc group).
+M0 is done (0.0.1 to 0.0.4). M1 (the Standard view) is done (0.1.5, 0.1.6). M2 (the Scientific view) is done (0.2.7). M3 (the Programmer view) is done (0.3.8); 0.3.9 and 0.3.10 keep the letter keys working on keyboards without Latin letters as Windows 7 does (D-022). M4 (the Statistics view) is done (0.4.11, D-023). **M5 (History, Digit grouping, Edit) is done** (0.5.12, D-024). **M6 (Unit conversion), M7 (Date calculation) and M8 (Worksheets) are done** (0.8.13, D-025, D-026, D-027): built one after the other in chrono-calc (5), (6) and (7), their tests run together at the end, as the owner ordered; reviewed in four rounds until one found nothing. **M9 is built** (0.9.14, D-028, chrono-calc (8)): Edit > History greyed where it can do nothing, Help > View Help (the repository), Help > About Chrono Calc on F1, the icon (`packaging/chrono-calc.svg`), the Calc entry, the AppStream file, the install rules and CPack; the `.deb` builds in Debian 12, the `.rpm` in AlmaLinux 9 (with gcc-toolset-13). The owner told Claude to continue on its own through each milestone, pushing after each reviewed step (OR-5), and to move to a new chat when the token estimate passes 500,000 (with Remote Control on and the chat directly in the Chrono Calc group).
 
 - Engine: `third_party/calculator/` (Microsoft's, commit `79e1ac5`, unchanged, D-014), library `chrono_calc_engine`; its 71 tests ported in `tests/engine/`.
 - Core: `core/calculator` drives four `CCalcEngine`s, Standard, Scientific, Programmer and Statistics (D-017, D-020, D-021, D-023): Windows 7's one memory, percent (also right after =, D-019), expression line, Inv, angle units, F-E, brackets, bases, word sizes, the bits, the Statistics list and its statistics (`core/statistics`, exact fractions), the history of Standard and Scientific with Edit (`core/historyedit`, two evaluation engines), Digit grouping with the regional pattern, Copy and Paste (Paste types the text as keys). `core/commands` (registry), `core/enginetexts`, `core/keys` (characters, keys, Ctrl letters), `core/layout` (both views' measures, buttons, faces), `core/menus` (View, Edit, Help), `core/colours.h` (every colour). `chrono-calc-cli` runs anything without a screen (D-016).
@@ -20,7 +20,7 @@ M0 is done (0.0.1 to 0.0.4). M1 (the Standard view) is done (0.1.5, 0.1.6). M2 (
 
 ## Next task
 
-M9, Release (ROADMAP 9.1 and 9.2): Help and About, our own icon, the Calc menu entry and the AppStream file; the CPack settings for `.deb` and `.rpm` that `build-release.sh` needs. The owner tests the pushed 0.8.13 first; installers only for milestone versions, run by the owner.
+The owner tests the pushed 0.9.14, then runs `./build-release.sh` (ROADMAP 9.2: the packages tested in Ubuntu 24.04 and Fedora 43, and on a Fedora computer with Wayland). Then the owner decides on 1.0.z and making the repository public (D-007, D-013).
 
 ## Open questions
 

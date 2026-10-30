@@ -1,0 +1,44 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- io.github.rob_vandenberg.chrono_calc.metainfo.xml 0.9.14
+     v0.9.14: Initial: the app information software centres (Discover, GNOME Software) need to list Chrono Calc as an
+     installed program. Installed in /usr/share/metainfo by the top-level CMakeLists.txt. -->
+<component type="desktop-application">
+  <id>io.github.rob_vandenberg.chrono_calc</id>
+  <name>Chrono Calc</name>
+  <summary>The calculator, with Standard, Scientific, Programmer and Statistics views</summary>
+  <metadata_license>CC0-1.0</metadata_license>
+  <project_license>AGPL-3.0-or-later</project_license>
+  <developer id="io.github.rob_vandenberg">
+    <name>Rob Vandenberg</name>
+  </developer>
+  <description>
+    <p>
+      Chrono Calc is a free calculator for your computer. It has a Standard, a Scientific, a Programmer and a
+      Statistics view, a history of your calculations, and panels beside the calculator for unit conversion, date
+      calculation, mortgages, vehicle leases and fuel economy.
+    </p>
+    <p>
+      It works and looks like the familiar desktop calculator you know, with every key on the keyboard, and gives
+      exact results with a proven open-source calculation engine.
+    </p>
+  </description>
+  <pkgname>chrono-calc</pkgname>
+  <launchable type="desktop-id">chrono-calc.desktop</launchable>
+  <icon type="stock">chrono-calc</icon>
+  <categories>
+    <category>Utility</category>
+    <category>Calculator</category>
+  </categories>
+  <keywords>
+    <keyword>calculator</keyword>
+    <keyword>scientific</keyword>
+    <keyword>programmer</keyword>
+    <keyword>statistics</keyword>
+  </keywords>
+  <url type="homepage">https://github.com/rob-vandenberg/chrono-calc</url>
+  <url type="bugtracker">https://github.com/rob-vandenberg/chrono-calc/issues</url>
+  <content_rating type="oars-1.1"/>
+  <provides>
+    <binary>chrono-calc</binary>
+  </provides>
+</component>

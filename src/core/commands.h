@@ -12,9 +12,10 @@
 #include <vector>
 
 // --- Version ------------------------------------------------------------
-// src/core/commands.h 0.8.13
+// src/core/commands.h 0.9.14
 
 // --- Version history ----------------------------------------------------
+// v0.9.14: Help > View Help and About Chrono Calc (help.view, help.about)
 // v0.8.13: The side panels (View > Basic, Unit conversion, Date calculation, Worksheets), the Unit conversion and Date
 //          calculation panels' and the Worksheets' commands
 // v0.5.12: History, Digit grouping, Copy and Paste: their commands; a command may take a text (Paste, Recalculate)
@@ -91,6 +92,10 @@ enum class CommandKind : std::uint8_t
     WorksheetChoose,
     WorksheetValue,
     WorksheetCalculate,
+    // Help > View Help (the repository's page in the browser) and About Chrono Calc (the About box): the window shows
+    // them; the calculator's state does not change
+    HelpView,
+    HelpAbout,
 };
 
 struct CommandTarget

@@ -5,6 +5,8 @@
 #include <QDate>
 #include <QDateEdit>
 #include <QDateTimeEdit>
+#include <QDesktopServices>
+#include <QDialog>
 #include <QEvent>
 #include <QGuiApplication>
 #include <QKeyEvent>
@@ -26,9 +28,11 @@
 #include <QStringList>
 #include <QTemporaryDir>
 #include <QTest>
+#include <QUrl>
 #include <QWidget>
 
 #include "core/enginetexts.h"
+#include "core/version.h"
 #include "ui/calcbutton.h"
 #include "ui/displaypanel.h"
 #include "ui/mainwindow.h"
@@ -43,9 +47,11 @@
 #include <vector>
 
 // --- Version ------------------------------------------------------------
-// tests/test_mainwindow.cpp 0.8.13
+// tests/test_mainwindow.cpp 0.9.14
 
 // --- Version history ----------------------------------------------------
+// v0.9.14: Edit > History greyed while the history is empty; Help > View Help opens the project's page, About Chrono
+//          Calc (F1) the About box; the window's icon
 // v0.8.13: The Unit conversion panel: beside every view, its sizes, converting, its keys, Tab order, remembered; the Date
 //          calculation panel: beside every view, both modes, Calculate, its keys, Tab order, the focus, remembered; the
 //          Worksheets: beside every view, their boxes and labels, Calculate, the messages, the list's keys, Tab order,
@@ -140,6 +146,21 @@ void pressKey(QWidget* widget, int key, const QString& text, std::uint32_t scanC
     QKeyEvent release(QEvent::KeyRelease, key, modifiers, scanCode + xkbOffset, keySymbol, 0, text);
     QCoreApplication::sendEvent(widget, &release);
 }
+
+// Receives the addresses Help > View Help opens, instead of the browser
+class UrlCatcher : public QObject
+{
+    Q_OBJECT
+
+public:
+    [[nodiscard]] const QStringList& opened() const { return m_opened; }
+
+public slots:  // NOLINT(readability-redundant-access-specifiers): Qt's slots section
+    void open(const QUrl& url) { m_opened.append(url.toString()); }
+
+private:
+    QStringList m_opened;
+};
 
 }  // namespace
 
@@ -445,8 +466,9 @@ private slots:
         QCOMPARE(actionOf(edit, QStringLiteral("&Paste"))->shortcut(), QKeySequence(QStringLiteral("Ctrl+V")));
         const QMenu* history = actionOf(edit, QStringLiteral("&History"))->menu();
         QCOMPARE(history->actions().size(), 4);
+        // The history is empty: all four are greyed
         for (const QAction* action : history->actions()) {
-            QVERIFY(action->isEnabled());
+            QVERIFY(!action->isEnabled());
         }
         // F2 and Esc are only shown: the window's keys do them (Esc is C, F2 a word size in Programmer)
         QVERIFY(actionOf(history, QStringLiteral("&Edit"))->shortcut().isEmpty());
@@ -455,8 +477,11 @@ private slots:
 
         const QMenu* help = menuOf(*window, QStringLiteral("&Help"));
         QVERIFY(help != nullptr);
-        QVERIFY(!actionOf(help, QStringLiteral("&View Help"))->isEnabled());
-        QVERIFY(!actionOf(help, QStringLiteral("&About Chrono Calc"))->isEnabled());
+        QVERIFY(actionOf(help, QStringLiteral("&View Help"))->isEnabled());
+        QVERIFY(actionOf(help, QStringLiteral("&View Help"))->shortcut().isEmpty());
+        QVERIFY(actionOf(help, QStringLiteral("&About Chrono Calc"))->isEnabled());
+        QCOMPARE(actionOf(help, QStringLiteral("&About Chrono Calc"))->shortcut(), QKeySequence(QStringLiteral("F1")));
+        QVERIFY(!window->windowIcon().isNull());
     }
 
     // View > Scientific: the window takes Windows 7's Scientific size, the number is cleared, the memory kept, the dot moves
@@ -820,6 +845,95 @@ private slots:
         QVERIFY(actionOf(menuOf(*window, QStringLiteral("&View")), QStringLiteral("D&igit grouping"))->isChecked());
         QTest::keyClicks(window->centralWidget(), QStringLiteral("1234"));
         QCOMPARE(displayOf(*window)->number(), QStringLiteral("1.234"));
+    }
+
+    // Edit > History: Copy history, Edit and Clear are greyed while the history is empty, Cancel edit unless an entry is
+    // edited; F2 and Ctrl+Shift+D do nothing then
+    static void historyItemsAreGreyedWhileUnusable()
+    {
+        const auto window = openWindow();
+        QVERIFY(window);
+        QWidget* area = window->centralWidget();
+        QTest::keyClick(area, Qt::Key_H, Qt::ControlModifier);
+        const QMenu* history = actionOf(menuOf(*window, QStringLiteral("&Edit")), QStringLiteral("&History"))->menu();
+        const auto enabled = [history](const QString& text) {
+            const QAction* action = actionOf(history, text);
+            return action != nullptr && action->isEnabled();
+        };
+        QVERIFY(!enabled(QStringLiteral("Copy h&istory")));
+        QVERIFY(!enabled(QStringLiteral("&Edit")));
+        QVERIFY(!enabled(QStringLiteral("C&lear")));
+        QVERIFY(!enabled(QStringLiteral("Ca&ncel edit")));
+        QTest::keyClick(area, Qt::Key_F2);
+        QVERIFY(partOf<QWidget>(*window, QStringLiteral("edit.box")) == nullptr);
+        QTest::keyClicks(area, QStringLiteral("2+3="));
+        QVERIFY(enabled(QStringLiteral("Copy h&istory")));
+        QVERIFY(enabled(QStringLiteral("C&lear")));
+        QVERIFY(!enabled(QStringLiteral("Ca&ncel edit")));
+        // Edit needs a chosen entry
+        QTest::keyClick(area, Qt::Key_Up);
+        QVERIFY(enabled(QStringLiteral("&Edit")));
+        // An entry edited: Cancel edit can be chosen, and drops the edit
+        QTest::keyClick(area, Qt::Key_F2);
+        QVERIFY(partOf<QWidget>(*window, QStringLiteral("edit.box")) != nullptr);
+        QVERIFY(enabled(QStringLiteral("&Recalculate")));
+        QVERIFY(enabled(QStringLiteral("Ca&ncel edit")));
+        actionOf(history, QStringLiteral("Ca&ncel edit"))->trigger();
+        QTRY_VERIFY(partOf<QWidget>(*window, QStringLiteral("edit.box")) == nullptr);
+        QVERIFY(!enabled(QStringLiteral("Ca&ncel edit")));
+        // Clear empties the history and greys the items again; its key then does nothing
+        QTest::keyClick(area, Qt::Key_D, Qt::ControlModifier | Qt::ShiftModifier);
+        QVERIFY(window->findChild<chrono_calc::StatisticsList*>(QStringLiteral("history.list"))->values().isEmpty());
+        QVERIFY(!enabled(QStringLiteral("Copy h&istory")));
+        QVERIFY(!enabled(QStringLiteral("&Edit")));
+        QVERIFY(!enabled(QStringLiteral("C&lear")));
+        QTest::keyClick(area, Qt::Key_D, Qt::ControlModifier | Qt::ShiftModifier);
+        QCOMPARE(displayOf(*window)->number(), QStringLiteral("5"));
+        // Scientific has its own history, empty here
+        QTest::keyClicks(area, QStringLiteral("4*5="));
+        QVERIFY(enabled(QStringLiteral("C&lear")));
+        QTest::keyClick(area, Qt::Key_2, Qt::AltModifier);
+        const QMenu* scientific = actionOf(menuOf(*window, QStringLiteral("&Edit")), QStringLiteral("&History"))->menu();
+        QVERIFY(!actionOf(scientific, QStringLiteral("C&lear"))->isEnabled());
+        QTest::keyClick(area, Qt::Key_H, Qt::ControlModifier);
+    }
+
+    // Help > View Help opens the project's page in the browser; About Chrono Calc (F1, D-028) shows the About box with the
+    // version, which OK, Escape and Enter close
+    static void helpOpensThePageAndTheAboutBox()
+    {
+        const auto window = openWindow();
+        QVERIFY(window);
+        QWidget* area = window->centralWidget();
+        UrlCatcher catcher;
+        QDesktopServices::setUrlHandler(QStringLiteral("https"), &catcher, "open");
+        actionOf(menuOf(*window, QStringLiteral("&Help")), QStringLiteral("&View Help"))->trigger();
+        QDesktopServices::unsetUrlHandler(QStringLiteral("https"));
+        QCOMPARE(catcher.opened(), QStringList({QStringLiteral("https://github.com/rob-vandenberg/chrono-calc")}));
+
+        QTest::keyClicks(area, QStringLiteral("12+"));
+        QTest::keyClick(area, Qt::Key_F1);
+        auto* box = partOf<QDialog>(*window, QStringLiteral("about.box"));
+        QVERIFY(box != nullptr && box->isVisible());
+        QCOMPARE(box->windowTitle(), QStringLiteral("About Chrono Calc"));
+        QCOMPARE(box->minimumSize(), box->maximumSize());
+        QCOMPARE(partOf<QLabel>(*window, QStringLiteral("about.title"))->text(), QStringLiteral("Chrono Calc"));
+        QCOMPARE(partOf<QLabel>(*window, QStringLiteral("about.version"))->text(),
+                 QStringLiteral("Version ") + QString::fromUtf8(chrono_calc::versionText().data()));
+        QVERIFY(partOf<QLabel>(*window, QStringLiteral("about.licence"))->text().contains(QStringLiteral("https://www.gnu.org/licenses/agpl-3.0.html")));
+        QVERIFY(partOf<QLabel>(*window, QStringLiteral("about.repository"))->text().contains(QStringLiteral("https://github.com/rob-vandenberg/chrono-calc")));
+        QTest::mouseClick(partOf<QWidget>(*window, QStringLiteral("about.ok")), Qt::LeftButton);
+        QTRY_VERIFY(partOf<QDialog>(*window, QStringLiteral("about.box")) == nullptr);
+        for (const Qt::Key key : {Qt::Key_Escape, Qt::Key_Return}) {
+            QTest::keyClick(area, Qt::Key_F1);
+            box = partOf<QDialog>(*window, QStringLiteral("about.box"));
+            QVERIFY(box != nullptr);
+            QTest::keyClick(box, key);
+            QTRY_VERIFY(partOf<QDialog>(*window, QStringLiteral("about.box")) == nullptr);
+        }
+        // The calculation is untouched
+        QCOMPARE(displayOf(*window)->number(), QStringLiteral("12"));
+        QCOMPARE(displayOf(*window)->expression(), QStringLiteral("12 +"));
     }
 
     // Each view has its Edit menu (windows7-history.md parts C and G): Programmer's History submenu is greyed (Windows 7
