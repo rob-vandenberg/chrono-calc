@@ -20,15 +20,17 @@
 #include "ui/calcbutton.h"
 #include "ui/displaypanel.h"
 #include "ui/mainwindow.h"
-#include "ui/scientificparts.h"
+#include "ui/viewparts.h"
 
 #include <algorithm>
+#include <string>
 #include <memory>
 
 // --- Version ------------------------------------------------------------
-// tests/test_mainwindow.cpp 0.2.7
+// tests/test_mainwindow.cpp 0.3.8
 
 // --- Version history ----------------------------------------------------
+// v0.3.8: The Programmer view: its size, the bases, the bit display and its clicks, the greyed digits
 // v0.2.7: The Scientific view: switching, its size, keys, Inv labels, toggles, angle units, bracket counter, the
 //         remembered view; Standard's button faces
 // v0.1.6: The Standard view (keys typed into the view area, as the real keyboard focus does): the measures, the buttons, the keys, the menus, the fixed size and the remembered position
@@ -270,13 +272,14 @@ private slots:
         const QAction* scientificItem = actionOf(view, QStringLiteral("&Scientific"));
         QVERIFY(scientificItem != nullptr && scientificItem->isEnabled() && !scientificItem->isChecked());
         QCOMPARE(scientificItem->shortcut(), QKeySequence(QStringLiteral("Alt+2")));
-        for (const QString& greyed : {QStringLiteral("&Programmer"), QStringLiteral("St&atistics"),
+        QVERIFY(actionOf(view, QStringLiteral("&Programmer"))->isEnabled());
+        for (const QString& greyed : {QStringLiteral("St&atistics"),
                                       QStringLiteral("Histor&y"), QStringLiteral("D&igit grouping"), QStringLiteral("&Unit conversion"),
                                       QStringLiteral("&Date calculation")}) {
             const QAction* action = actionOf(view, greyed);
             QVERIFY2(action != nullptr && !action->isEnabled(), qPrintable(greyed));
         }
-        QCOMPARE(actionOf(view, QStringLiteral("&Programmer"))->text(), QStringLiteral("&Programmer\tAlt+3"));
+        QCOMPARE(actionOf(view, QStringLiteral("St&atistics"))->text(), QStringLiteral("St&atistics\tAlt+4"));
         const QAction* worksheets = actionOf(view, QStringLiteral("&Worksheets"));
         QVERIFY(worksheets != nullptr && worksheets->menu() != nullptr);
         QCOMPARE(worksheets->menu()->actions().size(), 4);
@@ -329,6 +332,18 @@ private slots:
         QTest::keyClicks(window->centralWidget(), QStringLiteral("30s"));
         QCOMPARE(displayOf(*window)->number(), QStringLiteral("0,5"));
         QCOMPARE(displayOf(*window)->expression(), QStringLiteral("sind(30)"));
+        // With Caps Lock on the S key types "S" and still gives sin; Shift+S gives nothing (Windows 7)
+        QTest::keyClick(window->centralWidget(), Qt::Key_Escape);
+        QTest::keyClicks(window->centralWidget(), QStringLiteral("30"));
+        QTest::sendKeyEvent(QTest::Click, window->centralWidget(), Qt::Key_S, QStringLiteral("S"), Qt::NoModifier);
+        QCOMPARE(displayOf(*window)->expression(), QStringLiteral("sind(30)"));
+        QTest::keyClick(window->centralWidget(), Qt::Key_Escape);
+        QTest::keyClicks(window->centralWidget(), QStringLiteral("30"));
+        QTest::sendKeyEvent(QTest::Click, window->centralWidget(), Qt::Key_S, QStringLiteral("S"), Qt::ShiftModifier);
+        QCOMPARE(displayOf(*window)->number(), QStringLiteral("30"));
+        // Shift+S with Caps Lock on types "s": still nothing
+        QTest::sendKeyEvent(QTest::Click, window->centralWidget(), Qt::Key_S, QStringLiteral("s"), Qt::ShiftModifier);
+        QCOMPARE(displayOf(*window)->number(), QStringLiteral("30"));
         QTest::keyClick(window->centralWidget(), Qt::Key_Escape);
         QTest::keyClicks(window->centralWidget(), QStringLiteral("3"));
         QTest::keyClick(window->centralWidget(), Qt::Key_G, Qt::ControlModifier);
@@ -340,8 +355,8 @@ private slots:
         QCOMPARE(displayOf(*window)->number(), QStringLiteral("20"));
         QCOMPARE(window->findChild<chrono_calc::BracketCounter*>(QStringLiteral("brackets"))->text(), QString());
         QTest::keyClick(window->centralWidget(), Qt::Key_F4);
-        QVERIFY(window->findChild<chrono_calc::AngleButton*>(QStringLiteral("angle.radians"))->isChecked());
-        QVERIFY(!window->findChild<chrono_calc::AngleButton*>(QStringLiteral("angle.degrees"))->isChecked());
+        QVERIFY(window->findChild<chrono_calc::ChoiceButton*>(QStringLiteral("choice.angle.radians"))->isChecked());
+        QVERIFY(!window->findChild<chrono_calc::ChoiceButton*>(QStringLiteral("choice.angle.degrees"))->isChecked());
         QTest::keyClicks(window->centralWidget(), QStringLiteral("2+3%"));
         QCOMPARE(displayOf(*window)->number(), QStringLiteral("3"));
     }
@@ -363,8 +378,56 @@ private slots:
         QCOMPARE(displayOf(*window)->number(), QStringLiteral("90"));
         QVERIFY(!buttonOf(*window, QStringLiteral("inverse"))->isOn());
         QCOMPARE(buttonOf(*window, QStringLiteral("sin"))->text(), QStringLiteral("sin"));
-        QTest::mouseClick(window->findChild<chrono_calc::AngleButton*>(QStringLiteral("angle.grads")), Qt::LeftButton);
-        QVERIFY(window->findChild<chrono_calc::AngleButton*>(QStringLiteral("angle.grads"))->isChecked());
+        QTest::mouseClick(window->findChild<chrono_calc::ChoiceButton*>(QStringLiteral("choice.angle.grads")), Qt::LeftButton);
+        QVERIFY(window->findChild<chrono_calc::ChoiceButton*>(QStringLiteral("choice.angle.grads"))->isChecked());
+    }
+
+    // View > Programmer: Windows 7's size, Dec and Qword chosen, the bits, greyed digits per base, a bit click
+    static void theProgrammerViewWorksLikeWindows7()
+    {
+        const auto window = openWindow();
+        QVERIFY(window);
+        QTest::keyClick(window->centralWidget(), Qt::Key_3, Qt::AltModifier);
+        QCOMPARE(window->centralWidget()->size(), QSize(508, 413));
+        QTRY_COMPARE(window->findChildren<chrono_calc::CalcButton*>().size(), 45);
+        QVERIFY(window->findChild<chrono_calc::ChoiceButton*>(QStringLiteral("choice.base.decimal"))->isChecked());
+        QVERIFY(window->findChild<chrono_calc::ChoiceButton*>(QStringLiteral("choice.word.qword"))->isChecked());
+        QVERIFY(!buttonOf(*window, QStringLiteral("digit.a"))->isEnabled());
+        QVERIFY(!buttonOf(*window, QStringLiteral("decimal"))->isEnabled());
+        QTest::keyClicks(window->centralWidget(), QStringLiteral("255"));
+        auto* bits = window->findChild<chrono_calc::BitDisplay*>(QStringLiteral("bits"));
+        QCOMPARE(bits->bits(), std::string(56, '0') + std::string(8, '1'));
+        QCOMPARE(bits->visibleBits(), 64);
+        QTest::keyClick(window->centralWidget(), Qt::Key_F5);
+        QCOMPARE(displayOf(*window)->number(), QStringLiteral("FF"));
+        QVERIFY(buttonOf(*window, QStringLiteral("digit.a"))->isEnabled());
+        // The hexadecimal digits come from the letter keys, with or without Shift (Windows 7)
+        QTest::keyClick(window->centralWidget(), Qt::Key_Escape);
+        QTest::keyClick(window->centralWidget(), Qt::Key_A);
+        QTest::sendKeyEvent(QTest::Click, window->centralWidget(), Qt::Key_B, QStringLiteral("B"), Qt::ShiftModifier);
+        QCOMPARE(displayOf(*window)->number(), QStringLiteral("AB"));
+        QTest::keyClick(window->centralWidget(), Qt::Key_Escape);
+        QTest::keyClick(window->centralWidget(), Qt::Key_F6);
+        QTest::keyClicks(window->centralWidget(), QStringLiteral("255"));
+        QTest::keyClick(window->centralWidget(), Qt::Key_F5);
+        QCOMPARE(displayOf(*window)->number(), QStringLiteral("FF"));
+        QTest::keyClick(window->centralWidget(), Qt::Key_F4);
+        QCOMPARE(bits->visibleBits(), 8);
+        QTest::keyClick(window->centralWidget(), Qt::Key_F8);
+        QVERIFY(!buttonOf(*window, QStringLiteral("digit.2"))->isEnabled());
+        QCOMPARE(displayOf(*window)->number(), QStringLiteral("11111111"));
+        // A click on bit 0 turns it over: 1111 1110
+        QTest::mouseClick(bits, Qt::LeftButton, Qt::NoModifier, bits->bitArea(0).center());
+        QCOMPARE(displayOf(*window)->number(), QStringLiteral("11111110"));
+        QTest::keyClicks(window->centralWidget(), QStringLiteral("2"));
+        QCOMPARE(displayOf(*window)->number(), QStringLiteral("11111110"));
+        // The base and the word size stay over a view change, the number does not
+        QTest::keyClick(window->centralWidget(), Qt::Key_1, Qt::AltModifier);
+        QTest::keyClick(window->centralWidget(), Qt::Key_3, Qt::AltModifier);
+        QTRY_VERIFY(window->findChild<chrono_calc::ChoiceButton*>(QStringLiteral("choice.base.binary")) != nullptr);
+        QVERIFY(window->findChild<chrono_calc::ChoiceButton*>(QStringLiteral("choice.base.binary"))->isChecked());
+        QVERIFY(window->findChild<chrono_calc::ChoiceButton*>(QStringLiteral("choice.word.byte"))->isChecked());
+        QCOMPARE(displayOf(*window)->number(), QStringLiteral("0"));
     }
 
     // The window opens in the view it was closed in, as Windows 7 does

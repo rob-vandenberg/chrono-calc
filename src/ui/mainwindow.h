@@ -18,9 +18,10 @@ class QKeyEvent;
 class QMenu;
 
 // --- Version ------------------------------------------------------------
-// src/ui/mainwindow.h 0.2.7
+// src/ui/mainwindow.h 0.3.8
 
 // --- Version history ----------------------------------------------------
+// v0.3.8: The Programmer view: its size, the bases and word sizes, the bit display, the digits each base allows
 // v0.2.7: The Scientific view; View > Standard and Scientific switch the buttons and the window size; the view is
 //         remembered; Inv labels, the toggles, the angle units and the bracket counter follow the calculator (D-020)
 // v0.1.6: The Standard view: the menus, the display, the buttons and the keys, a fixed size and the position
@@ -29,8 +30,9 @@ class QMenu;
 
 namespace chrono_calc {
 
-class AngleButton;
+class BitDisplay;
 class BracketCounter;
+class ChoiceButton;
 class CalcButton;
 class DisplayPanel;
 
@@ -58,6 +60,8 @@ private:
     // Puts the display and the buttons of this view in place, and gives the window its size
     void buildView(View view);
     void runCommand(std::string_view commandId);
+    // Turns a bit of the bit display over (the command "bit.N")
+    void runBitCommand(int bit);
     // Runs a command that came from the keyboard and shows its button pressed for a moment
     void runKeyCommand(std::string_view commandId);
     void showCalculator();
@@ -72,8 +76,9 @@ private:
     // Everything of the current view (buttons, angle units, counter), replaced on a view change
     std::vector<QWidget*> m_viewParts;
     std::vector<CalcButton*> m_buttons;
-    std::vector<AngleButton*> m_angleButtons;
+    std::vector<ChoiceButton*> m_choiceButtons;
     BracketCounter* m_bracketCounter = nullptr;
+    BitDisplay* m_bitDisplay = nullptr;
     std::vector<QAction*> m_viewActions;
 };
 

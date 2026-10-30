@@ -22,9 +22,11 @@
 #include <vector>
 
 // --- Version ------------------------------------------------------------
-// src/core/calculator.cpp 0.2.7
+// src/core/calculator.cpp 0.3.8
 
 // --- Version history ----------------------------------------------------
+// v0.3.8: The Programmer view: a third engine in integer mode (64 bits); bases and word sizes kept over a view change;
+//         the bits; which commands each view and base allows (D-021)
 // v0.2.7: The Scientific view: its own engine with precedence and 32 digits, the one memory shared; Inv, the angle
 //         units, F-E, brackets; the expression line from the engine as Windows 7 shows it (D-020)
 // v0.1.6: view.standard and view.basic change nothing while the calculator is already in Standard and Basic, as in
@@ -41,6 +43,9 @@ namespace {
 constexpr int32_t standardPrecision = 16;
 // The Scientific view shows 32 digits, in Windows 7 as in Windows 10
 constexpr int32_t scientificPrecision = 32;
+// The Programmer view works on 64-bit integers (Windows 10's precision for it)
+constexpr int32_t programmerPrecision = 64;
+constexpr std::size_t bitCount = 64;
 constexpr std::size_t historySize = 20;
 
 bool isBinaryOperator(std::uintptr_t opCode)
@@ -116,6 +121,42 @@ bool isScientificOnly(std::uintptr_t opCode)
     }
 }
 
+// The commands only the Programmer view has
+bool isProgrammerOnly(std::uintptr_t opCode)
+{
+    return (opCode >= IDC_A && opCode <= IDC_F) || opCode == IDC_AND || opCode == IDC_OR || opCode == IDC_XOR || opCode == IDC_COM
+           || opCode == IDC_LSHF || opCode == IDC_RSHF || opCode == IDC_ROL || opCode == IDC_ROR || (opCode >= IDM_HEX && opCode <= IDM_BIN)
+           || (opCode >= IDM_QWORD && opCode <= IDM_BYTE) || (opCode >= IDC_BINEDITSTART && opCode <= IDC_BINEDITEND);
+}
+
+// How many digits a base has
+std::uintptr_t digitCount(NumberBase base)
+{
+    switch (base) {
+    case NumberBase::Hexadecimal: return 16;
+    case NumberBase::Octal: return 8;
+    case NumberBase::Binary: return 2;
+    case NumberBase::Decimal: break;
+    }
+    return 10;
+}
+
+// What the Programmer view allows (Windows 7): the shared keys without the decimal point, sqrt, % and 1/x; the
+// Scientific Mod and brackets; its own commands; and only the digits of the current base
+bool programmerAllows(std::uintptr_t opCode, NumberBase base)
+{
+    if (opCode == IDC_PNT || opCode == IDC_SQRT || opCode == IDC_PERCENT || opCode == IDC_REC) {
+        return false;
+    }
+    if (opCode >= IDC_0 && opCode <= IDC_F) {
+        return opCode - IDC_0 < digitCount(base);
+    }
+    if (isScientificOnly(opCode)) {
+        return opCode == IDC_MOD || opCode == IDC_OPENP || opCode == IDC_CLOSEP;
+    }
+    return true;
+}
+
 // Windows 7 writes brackets tight against what they hold: "(2 +", "((", "(2 + 3)"
 std::wstring tightBrackets(const std::wstring& text)
 {
@@ -130,6 +171,17 @@ std::wstring tightBrackets(const std::wstring& text)
         result += character;
     }
     return result;
+}
+
+// The precision of each view's engine
+int32_t precisionOf(View view)
+{
+    switch (view) {
+    case View::Scientific: return scientificPrecision;
+    case View::Programmer: return programmerPrecision;
+    case View::Standard: break;
+    }
+    return standardPrecision;
 }
 
 std::wstring trimmed(const std::wstring& text)
@@ -245,10 +297,10 @@ private:
 namespace {
 
 std::unique_ptr<CCalcEngine> newEngine(bool precedence, EngineTexts& texts, ICalcDisplay* display,
-                                       const std::shared_ptr<CalculationManager::CalculatorHistory>& history)
+                                       const std::shared_ptr<CalculationManager::CalculatorHistory>& history, bool integers = false)
 {
     CCalcEngine::InitialOneTimeOnlySetup(texts);  // the engine's texts and number constants; the same for every engine
-    return std::make_unique<CCalcEngine>(precedence, false, &texts, display, history);
+    return std::make_unique<CCalcEngine>(precedence, integers, &texts, display, history);
 }
 
 }  // namespace
@@ -258,21 +310,27 @@ Calculator::Calculator(Separators separators)
     , m_display(std::make_unique<Display>())
     , m_standardHistory(std::make_shared<CalculationManager::CalculatorHistory>(historySize))
     , m_scientificHistory(std::make_shared<CalculationManager::CalculatorHistory>(historySize))
+    , m_programmerHistory(std::make_shared<CalculationManager::CalculatorHistory>(historySize))
     , m_standardEngine(newEngine(false /* left to right */, m_texts, m_display.get(), m_standardHistory))
     , m_scientificEngine(newEngine(true /* precedence */, m_texts, m_display.get(), m_scientificHistory))
+    , m_programmerEngine(newEngine(true /* precedence */, m_texts, m_display.get(), m_programmerHistory, true /* integers */))
     , m_engine(m_standardEngine.get())
 {
     // The engine never gives m_decimalSeparator a start value (CalcEngine.h:166), and SettingsChanged() only updates the
     // decimal symbol of its input when the new one differs from that value: by chance it may not, and then "0,1" is read
     // as an overflow. Reporting another separator once and then the real one makes the engine update it in every case.
     m_texts.setSeparators(Separators{.decimal = separators.decimal == L'.' ? L',' : L'.', .thousands = separators.thousands});
-    m_scientificEngine->SettingsChanged();
-    m_standardEngine->SettingsChanged();
+    for (CCalcEngine* engine : {m_programmerEngine.get(), m_scientificEngine.get(), m_standardEngine.get()}) {
+        engine->SettingsChanged();
+    }
     m_texts.setSeparators(separators);
-    for (CCalcEngine* engine : {m_scientificEngine.get(), m_standardEngine.get()}) {
+    // The Standard engine is set up last: the number library's shared constants follow the last engine's precision, and
+    // Standard is the view the calculator starts in
+    for (const View view : {View::Programmer, View::Scientific, View::Standard}) {
+        CCalcEngine* engine = engineOf(view);
         engine->SettingsChanged();
         engine->ProcessCommand(IDC_DEC);
-        engine->ChangePrecision(engine == m_scientificEngine.get() ? scientificPrecision : standardPrecision);
+        engine->ChangePrecision(precisionOf(view));
         engine->UpdateMaxIntDigits();
         engine->ProcessCommand(IDC_CLEAR);
     }
@@ -301,6 +359,9 @@ bool Calculator::run(std::string_view commandId)
     case CommandKind::ViewScientific:
         switchView(View::Scientific);
         return true;
+    case CommandKind::ViewProgrammer:
+        switchView(View::Programmer);
+        return true;
     case CommandKind::Inverse:
         // Not while an error shows: the engine then takes only C and CE
         if (m_view == View::Scientific && !isError()) {
@@ -316,12 +377,17 @@ bool Calculator::run(std::string_view commandId)
     if (isError() && opCode != IDC_CLEAR && opCode != IDC_CENTR) {
         return true;
     }
+    // A command the view does not have, or greys (Windows 7), does nothing: a key without a button there
+    if (!isAvailable(commandId)) {
+        return true;
+    }
     if (m_view == View::Scientific) {
         runScientific(opCode);
         return true;
     }
-    if (isScientificOnly(opCode)) {
-        return true;  // not in the Standard view: like a key Windows 7 has no button for there
+    if (m_view == View::Programmer) {
+        runProgrammer(opCode);
+        return true;
     }
     if (isBinaryOperator(opCode)) {
         binaryOperator(opCode);
@@ -378,11 +444,21 @@ bool Calculator::run(std::string_view commandId)
 
 std::wstring Calculator::display() const
 {
+    // The engine always groups hexadecimal, octal and binary numbers with spaces (scidisp.cpp, GroupDigitsPerRadix:
+    // Windows 10's choice); Windows 7 starts with Digit grouping off and shows them whole, as it does decimals
+    if (m_view == View::Programmer && m_numberBase != NumberBase::Decimal && !isError()) {
+        std::wstring whole = m_display->primary();
+        std::erase(whole, L' ');
+        return whole;
+    }
     return m_display->primary();
 }
 
 std::wstring Calculator::expression() const
 {
+    if (m_view == View::Programmer) {
+        return {};  // Windows 7 shows no expression line in the Programmer view
+    }
     if (m_view == View::Scientific) {
         // The engine's own expression with Windows 7's names; empty after =, but kept when = ends in an error ("1 /")
         return m_afterEquals ? std::wstring() : tightBrackets(m_display->full());
@@ -432,7 +508,7 @@ unsigned int Calculator::openBrackets() const
     return m_display->openBrackets();
 }
 
-bool Calculator::isAvailable(View view, std::string_view commandId)
+bool Calculator::isAvailable(View view, NumberBase base, std::string_view commandId)
 {
     const auto target = findCommand(commandId);
     if (!target) {
@@ -445,10 +521,106 @@ bool Calculator::isAvailable(View view, std::string_view commandId)
         return true;
     }
     const auto opCode = static_cast<std::uintptr_t>(target->engineCommand);
-    if (view == View::Scientific) {
-        return opCode != IDC_PERCENT;
+    switch (view) {
+    case View::Scientific:
+        return opCode != IDC_PERCENT && !isProgrammerOnly(opCode);
+    case View::Programmer:
+        return programmerAllows(opCode, base);
+    case View::Standard:
+        break;
     }
-    return !isScientificOnly(opCode);
+    return !isScientificOnly(opCode) && !isProgrammerOnly(opCode);
+}
+
+bool Calculator::isAvailable(std::string_view commandId) const
+{
+    return isAvailable(m_view, m_numberBase, commandId);
+}
+
+NumberBase Calculator::numberBase() const
+{
+    return m_numberBase;
+}
+
+WordSize Calculator::wordSize() const
+{
+    return m_wordSize;
+}
+
+int Calculator::wordBits() const
+{
+    switch (m_wordSize) {
+    case WordSize::Dword: return 32;
+    case WordSize::Word: return 16;
+    case WordSize::Byte: return 8;
+    case WordSize::Qword: break;
+    }
+    return 64;
+}
+
+std::string Calculator::bits()
+{
+    std::string result(bitCount, '0');
+    if (m_view != View::Programmer || isError()) {
+        return result;
+    }
+    // The engine's own binary text of the current value (two's complement within the word size)
+    const std::wstring binary = m_engine->GetCurrentResultForRadix(2, programmerPrecision, false);
+    std::size_t position = bitCount;
+    for (auto character = binary.rbegin(); character != binary.rend() && position > 0; ++character) {
+        if (*character == L'0' || *character == L'1') {
+            result[--position] = static_cast<char>(*character);
+        }
+    }
+    return result;
+}
+
+bool Calculator::isChosen(std::string_view commandId) const
+{
+    const auto target = findCommand(commandId);
+    if (!target || target->kind != CommandKind::Engine) {
+        return false;
+    }
+    switch (static_cast<std::uintptr_t>(target->engineCommand)) {
+    case IDC_DEG: return m_angleUnit == AngleUnit::Degrees;
+    case IDC_RAD: return m_angleUnit == AngleUnit::Radians;
+    case IDC_GRAD: return m_angleUnit == AngleUnit::Grads;
+    case IDM_HEX: return m_numberBase == NumberBase::Hexadecimal;
+    case IDM_DEC: return m_numberBase == NumberBase::Decimal;
+    case IDM_OCT: return m_numberBase == NumberBase::Octal;
+    case IDM_BIN: return m_numberBase == NumberBase::Binary;
+    case IDM_QWORD: return m_wordSize == WordSize::Qword;
+    case IDM_DWORD: return m_wordSize == WordSize::Dword;
+    case IDM_WORD: return m_wordSize == WordSize::Word;
+    case IDM_BYTE: return m_wordSize == WordSize::Byte;
+    default: return false;
+    }
+}
+
+CCalcEngine* Calculator::engineOf(View view) const
+{
+    switch (view) {
+    case View::Scientific: return m_scientificEngine.get();
+    case View::Programmer: return m_programmerEngine.get();
+    case View::Standard: break;
+    }
+    return m_standardEngine.get();
+}
+
+void Calculator::runProgrammer(std::uintptr_t opCode)
+{
+    switch (opCode) {
+    case IDM_HEX: m_numberBase = NumberBase::Hexadecimal; break;
+    case IDM_DEC: m_numberBase = NumberBase::Decimal; break;
+    case IDM_OCT: m_numberBase = NumberBase::Octal; break;
+    case IDM_BIN: m_numberBase = NumberBase::Binary; break;
+    case IDM_QWORD: m_wordSize = WordSize::Qword; break;
+    case IDM_DWORD: m_wordSize = WordSize::Dword; break;
+    case IDM_WORD: m_wordSize = WordSize::Word; break;
+    case IDM_BYTE: m_wordSize = WordSize::Byte; break;
+    default: break;
+    }
+    runEngine(opCode);
 }
 
 void Calculator::resetWrapperState()
@@ -480,10 +652,15 @@ void Calculator::switchView(View view)
     m_angleUnit = AngleUnit::Degrees;
     m_scientificNotation = false;
     m_view = view;
-    m_engine = view == View::Scientific ? m_scientificEngine.get() : m_standardEngine.get();
+    // The Programmer engine keeps its base and word size, as Windows 7 does
+    m_engine = engineOf(view);
     m_engine->PersistedMemObject(memory);
     resetWrapperState();
     m_engine->ProcessCommand(IDC_CLEAR);
+    // The number library (RatPack) keeps its radix and precision in constants shared by every engine; the engine of the
+    // view must set its own again, as Windows 10 does on every view change (CalculatorManager::SetStandardMode and
+    // the others), or it calculates with the previous view's (found in review: a wrong 0 or -3e-47)
+    m_engine->ChangePrecision(precisionOf(view));
 }
 
 void Calculator::runScientific(std::uintptr_t opCode)

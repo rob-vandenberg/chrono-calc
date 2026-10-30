@@ -5,9 +5,10 @@
 #include <vector>
 
 // --- Version ------------------------------------------------------------
-// src/core/menus.cpp 0.2.7
+// src/core/menus.cpp 0.3.8
 
 // --- Version history ----------------------------------------------------
+// v0.3.8: View > Programmer is built
 // v0.2.7: View > Scientific is built
 // v0.1.6: Initial: the menus View, Edit and Help of the Windows 7 Calculator (D-018)
 
@@ -57,7 +58,7 @@ std::vector<Menu> standardMenus()
               .items = {
                   dotted(item("S&tandard", "Alt+1", "view.standard"), viewGroup, true),
                   dotted(item("&Scientific", "Alt+2", "view.scientific"), viewGroup, false),
-                  dotted(item("&Programmer", "Alt+3"), viewGroup, false),
+                  dotted(item("&Programmer", "Alt+3", "view.programmer"), viewGroup, false),
                   dotted(item("St&atistics", "Alt+4"), viewGroup, false),
                   afterSeparator(item("Histor&y", "Ctrl+H")),
                   item("D&igit grouping"),

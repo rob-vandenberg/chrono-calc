@@ -14,9 +14,11 @@
 #include <string_view>
 
 // --- Version ------------------------------------------------------------
-// src/core/calculator.h 0.2.7
+// src/core/calculator.h 0.3.8
 
 // --- Version history ----------------------------------------------------
+// v0.3.8: The Programmer view: a third engine in integer mode (64 bits); bases and word sizes kept over a view change;
+//         the bits; which commands each view and base allows (D-021)
 // v0.2.7: The Scientific view: its own engine with precedence and 32 digits, the one memory shared; Inv, the angle
 //         units, F-E, brackets; the expression line from the engine as Windows 7 shows it (D-020)
 // v0.1.6: The last result, for a percent right after = (Windows 7)
@@ -56,8 +58,18 @@ public:
     [[nodiscard]] bool isScientificNotation() const;
     // How many brackets are open (the Scientific view shows "(=1")
     [[nodiscard]] unsigned int openBrackets() const;
-    // Whether the command does something in the current view (Windows 7 greys its button otherwise)
-    [[nodiscard]] static bool isAvailable(View view, std::string_view commandId);
+    // The Programmer view's number base and word size, and how many bits that word has
+    [[nodiscard]] NumberBase numberBase() const;
+    [[nodiscard]] WordSize wordSize() const;
+    [[nodiscard]] int wordBits() const;
+    // The 64 bits of the current value, bit 63 first, as the engine writes it in binary ('0' or '1'); all '0' outside
+    // the Programmer view and while an error shows
+    [[nodiscard]] std::string bits();
+    // Whether a choice (an angle unit, a base, a word size) is the chosen one
+    [[nodiscard]] bool isChosen(std::string_view commandId) const;
+    // Whether the command does something in a view and base (Windows 7 greys its button otherwise)
+    [[nodiscard]] static bool isAvailable(View view, NumberBase base, std::string_view commandId);
+    [[nodiscard]] bool isAvailable(std::string_view commandId) const;
 
 private:
     class Display;
@@ -65,6 +77,8 @@ private:
     void switchView(View view);
     void resetWrapperState();
     void runScientific(std::uintptr_t opCode);
+    void runProgrammer(std::uintptr_t opCode);
+    [[nodiscard]] CCalcEngine* engineOf(View view) const;
     void runEngine(std::uintptr_t opCode);
     void binaryOperator(std::uintptr_t opCode);
     void percent();
@@ -79,15 +93,19 @@ private:
     std::unique_ptr<Display> m_display;
     std::shared_ptr<CalculationManager::CalculatorHistory> m_standardHistory;
     std::shared_ptr<CalculationManager::CalculatorHistory> m_scientificHistory;
+    std::shared_ptr<CalculationManager::CalculatorHistory> m_programmerHistory;
     // One engine per view, as Windows 10 has: Standard calculates from left to right with 16 digits, Scientific with
-    // precedence and 32 digits. m_engine is the engine of the current view.
+    // precedence and 32 digits, Programmer with precedence on 64-bit integers. m_engine is the engine of the current view.
     std::unique_ptr<CCalcEngine> m_standardEngine;
     std::unique_ptr<CCalcEngine> m_scientificEngine;
+    std::unique_ptr<CCalcEngine> m_programmerEngine;
     CCalcEngine* m_engine = nullptr;
     View m_view = View::Standard;
     bool m_inverse = false;
     AngleUnit m_angleUnit = AngleUnit::Degrees;
     bool m_scientificNotation = false;
+    NumberBase m_numberBase = NumberBase::Decimal;
+    WordSize m_wordSize = WordSize::Qword;
 
     // The expression line (Windows 7): the finished part ("2 + 3 *"), whether the last command was a binary operator,
     // the operator pending in the engine, and its left value while it is multiply or divide (for percent)

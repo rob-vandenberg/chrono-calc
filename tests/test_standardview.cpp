@@ -13,9 +13,10 @@
 #include <string_view>
 
 // --- Version ------------------------------------------------------------
-// tests/test_standardview.cpp 0.2.7
+// tests/test_standardview.cpp 0.3.8
 
 // --- Version history ----------------------------------------------------
+// v0.3.8: The Programmer view: its 45 buttons, choices and the bits; what each base allows
 // v0.2.7: Both views: Standard and Scientific (the Windows 7 measures of windows7-scientific.md part A), the faces
 // v0.1.6: Initial: the Standard view's buttons and menus (core): every one runs a registered command
 
@@ -41,6 +42,7 @@ private slots:
         QTest::addColumn<int>("count");
         QTest::newRow("Standard") << static_cast<int>(chrono_calc::View::Standard) << 28;
         QTest::newRow("Scientific") << static_cast<int>(chrono_calc::View::Scientific) << 52;
+        QTest::newRow("Programmer") << static_cast<int>(chrono_calc::View::Programmer) << 45;
     }
 
     static void everyButtonRunsARegisteredCommandInItsOwnPlace()
@@ -61,14 +63,17 @@ private slots:
             QVERIFY(place.left + place.width <= layout.clientWidth);
             QVERIFY(place.top + place.height <= layout.clientHeight);
             QVERIFY(!overlap(place, layout.displayFrame));
-            QVERIFY(!overlap(place, layout.angleFrame));
+            for (const chrono_calc::Rectangle& frame : layout.frames) {
+                QVERIFY(!overlap(place, frame));
+            }
+            QVERIFY(!overlap(place, layout.bitDisplay.frame));
             QVERIFY(!overlap(place, layout.bracketCounter));
             for (std::size_t other = index + 1; other < buttons.size(); ++other) {
                 QVERIFY2(!overlap(place, buttons[other].rectangle), button.commandId.data());
             }
         }
-        for (const chrono_calc::AngleSpec& angle : layout.angles) {
-            QVERIFY(chrono_calc::findCommand(angle.commandId).has_value());
+        for (const chrono_calc::ChoiceSpec& choice : layout.choices) {
+            QVERIFY(chrono_calc::findCommand(choice.commandId).has_value());
         }
     }
 
@@ -79,7 +84,7 @@ private slots:
         QCOMPARE(layout.clientWidth, 508);
         QCOMPARE(layout.clientHeight, 331);
         QCOMPARE(layout.displayFrame.width, 482);
-        QCOMPARE(layout.angles.size(), std::size_t{3});
+        QCOMPARE(layout.choices.size(), std::size_t{3});
         const auto place = [&layout](std::string_view commandId) {
             for (const chrono_calc::ButtonSpec& button : layout.buttons) {
                 if (button.commandId == commandId) {
@@ -102,21 +107,62 @@ private slots:
         QCOMPARE(place("decimal").left, 355);
     }
 
+    // The Programmer measures of Windows 7 (windows7-programmer.md part A): the bits sit in groups of four
+    static void theProgrammerViewHasTheMeasuresOfWindows7()
+    {
+        const chrono_calc::ViewLayout& layout = chrono_calc::layoutOf(chrono_calc::View::Programmer);
+        QCOMPARE(layout.clientHeight, 413);
+        QCOMPARE(layout.choices.size(), std::size_t{8});
+        QCOMPARE(chrono_calc::bitRectangle(63).left, 22);
+        QCOMPARE(chrono_calc::bitRectangle(63).top, 88);
+        QCOMPARE(chrono_calc::bitRectangle(62).left, 32);
+        QCOMPARE(chrono_calc::bitRectangle(60).left, 51);
+        QCOMPARE(chrono_calc::bitRectangle(59).left, 82);
+        QCOMPARE(chrono_calc::bitRectangle(32).left, 471);
+        QCOMPARE(chrono_calc::bitRectangle(31).top, 121);
+        QCOMPARE(chrono_calc::bitRectangle(0).left, 471);
+        QCOMPARE(chrono_calc::bitRectangle(0).width, 9);
+    }
+
+    // What each base allows in Programmer (Windows 7): never the decimal point, sqrt, % and 1/x; A to F only in Hex,
+    // 8 and 9 not in Oct, only 0 and 1 in Bin
+    static void eachBaseAllowsItsOwnDigits()
+    {
+        using chrono_calc::Calculator;
+        using chrono_calc::NumberBase;
+        constexpr auto programmer = chrono_calc::View::Programmer;
+        for (const NumberBase base : {NumberBase::Hexadecimal, NumberBase::Decimal, NumberBase::Octal, NumberBase::Binary}) {
+            for (const char* never : {"decimal", "sqrt", "percent", "reciprocal", "sin", "inverse"}) {
+                QVERIFY(!Calculator::isAvailable(programmer, base, never));
+            }
+            QVERIFY(Calculator::isAvailable(programmer, base, "digit.1"));
+            QVERIFY(Calculator::isAvailable(programmer, base, "modulo"));
+        }
+        QVERIFY(Calculator::isAvailable(programmer, NumberBase::Hexadecimal, "digit.f"));
+        QVERIFY(!Calculator::isAvailable(programmer, NumberBase::Decimal, "digit.a"));
+        QVERIFY(Calculator::isAvailable(programmer, NumberBase::Decimal, "digit.9"));
+        QVERIFY(!Calculator::isAvailable(programmer, NumberBase::Octal, "digit.8"));
+        QVERIFY(Calculator::isAvailable(programmer, NumberBase::Octal, "digit.7"));
+        QVERIFY(!Calculator::isAvailable(programmer, NumberBase::Binary, "digit.2"));
+        QVERIFY(!Calculator::isAvailable(chrono_calc::View::Standard, NumberBase::Hexadecimal, "digit.a"));
+        QVERIFY(!Calculator::isAvailable(chrono_calc::View::Scientific, NumberBase::Hexadecimal, "and"));
+    }
+
     // Windows 7 greys % in the Scientific view; every other button can be used
     static void onlyPercentIsGreyedInScientific()
     {
         for (const chrono_calc::ButtonSpec& button : chrono_calc::layoutOf(chrono_calc::View::Scientific).buttons) {
-            QCOMPARE(chrono_calc::Calculator::isAvailable(chrono_calc::View::Scientific, button.commandId), button.commandId != "percent");
+            QCOMPARE(chrono_calc::Calculator::isAvailable(chrono_calc::View::Scientific, chrono_calc::NumberBase::Decimal, button.commandId), button.commandId != "percent");
         }
         for (const chrono_calc::ButtonSpec& button : chrono_calc::layoutOf(chrono_calc::View::Standard).buttons) {
-            QVERIFY(chrono_calc::Calculator::isAvailable(chrono_calc::View::Standard, button.commandId));
+            QVERIFY(chrono_calc::Calculator::isAvailable(chrono_calc::View::Standard, chrono_calc::NumberBase::Decimal, button.commandId));
         }
     }
 
     // The faces of Windows 7: digits and the decimal point light, the memory row flat, Inv and F-E toggles
     static void everyButtonHasTheFaceOfWindows7()
     {
-        for (const chrono_calc::View view : {chrono_calc::View::Standard, chrono_calc::View::Scientific}) {
+        for (const chrono_calc::View view : {chrono_calc::View::Standard, chrono_calc::View::Scientific, chrono_calc::View::Programmer}) {
             for (const chrono_calc::ButtonSpec& button : chrono_calc::layoutOf(view).buttons) {
                 const std::string id(button.commandId);
                 chrono_calc::ButtonFace expected = chrono_calc::ButtonFace::Function;
@@ -126,6 +172,9 @@ private slots:
                     expected = chrono_calc::ButtonFace::Memory;
                 } else if (id == "inverse" || id == "scientific_notation") {
                     expected = chrono_calc::ButtonFace::Toggle;
+                }
+                if (id.size() == 7 && id.starts_with("digit.") && id[6] >= 'a') {
+                    expected = chrono_calc::ButtonFace::Flat;
                 }
                 QVERIFY2(button.face == expected, id.c_str());
             }
@@ -155,8 +204,8 @@ private slots:
                 }
             }
         }
-        QCOMPARE(built, 3);
-        QCOMPARE(greyed, 18);
+        QCOMPARE(built, 4);
+        QCOMPARE(greyed, 17);
         const auto view = chrono_calc::standardMenus().front();
         QCOMPARE(view.items.front().entry.commandId, std::string_view("view.standard"));
         QVERIFY(view.items.front().entry.chosen);

@@ -1,7 +1,8 @@
 # --- Version ------------------------------------------------------------
-# tests/CMakeLists.txt 0.2.7
+# tests/CMakeLists.txt 0.3.8
 
 # --- Version history ----------------------------------------------------
+# v0.3.8: test_reference_programmer (the Windows 7 Programmer results)
 # v0.2.7: test_reference_scientific (the Windows 7 Scientific results)
 # v0.1.6: test_standardview (the buttons and menus of the Standard view)
 # v0.1.5: test_reference_standard (the Windows 7 results)
@@ -28,6 +29,7 @@ chrono_calc_test(test_calculator chrono_calc_core)
 chrono_calc_test(test_reference_standard chrono_calc_core)
 chrono_calc_test(test_standardview chrono_calc_core)
 chrono_calc_test(test_reference_scientific chrono_calc_core)
+chrono_calc_test(test_reference_programmer chrono_calc_core)
 
 # The command-line driver, checked on exit code, output and error text (cli_check.cmake)
 function(chrono_calc_cli_test name exit_code output)

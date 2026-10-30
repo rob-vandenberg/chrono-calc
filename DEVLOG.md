@@ -64,3 +64,13 @@ Append-only. One entry per completed task, newest last.
 - Review: three faults, one cause: during an error the engine takes only C and CE, while the wrapper still changed its angle, Inv and F-E switches (a wrong unit after a view change or a key during an error). Fixed at the cause, with a regression test shown to fail before.
 - A second review found the same cause in the expression line: a key ignored during an error still changed it. Now one rule in both views: while an error shows, only C and CE reach the engine; Windows 7 confirmed it does exactly that (part F of the reference). Its fault of keeping F-E on inside after C during an error is not copied.
 - Tests: all 45 Windows 7 Scientific lines plus switching, error and F-E checks pass (`test_reference_scientific`), the 36 Standard lines still pass; the related 9 tests pass with GCC 15, Clang 21 and on Debian 12 (Qt 6.4).
+
+## 2026-10-30: 0.3.8, M3 the Programmer view (task 3.1)
+
+- Measured on the Windows 7 Calculator: the layout (508 x 413, 45 buttons, the bit display, bases and word sizes), greyed buttons per base, keys, view switching, two's complement, wrapping, refused digits, 30 results (`tests/reference/windows7-programmer.md`).
+- A third engine in integer mode (64 bits, precedence); base and word size kept over a view change; what each base allows; the bits from the engine's own binary text; a click on a bit turns it over (D-021).
+- Found through Windows 7: the engine always groups Hex, Oct and Bin with spaces (Windows 10); Windows 7 shows them whole: the wrapper shows them whole.
+- Review: the number library keeps its precision in constants shared by all engines; the wrapper set them only at start, so after a visit to Programmer a Standard result could be -3e-47 instead of 0, and a 64-bit subtraction 0 instead of 1. Each view's engine now sets its own on every view change, as Windows 10 does; regression test shown to fail before.
+- Checked with Windows 7: memory across views (two's complement from Programmer, fractions kept), A-F with Shift and Caps Lock, Scientific letters with Caps Lock. Windows 7's fault with -1,5 recalled in Programmer is not copied.
+- The round choices of every view are one kind of control now (`ui/viewparts`, was `scientificparts`).
+- Tests: all 30 Windows 7 Programmer lines plus part B pass (`test_reference_programmer`, 53 rows); the related 10 tests pass with GCC 15, Clang 21 and on Debian 12 (Qt 6.4).

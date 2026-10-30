@@ -3,9 +3,10 @@
 #include <cstdint>
 
 // --- Version ------------------------------------------------------------
-// src/core/colours.h 0.2.7
+// src/core/colours.h 0.3.8
 
 // --- Version history ----------------------------------------------------
+// v0.3.8: The flat face of A to F, the bit display; the choice colours serve angle units, bases and word sizes
 // v0.2.7: The faces of function, memory, toggle and greyed buttons; the angle units and the bracket counter
 // v0.1.6: Initial: the colours of the Standard view, close to the Windows 7 Calculator (D-005, D-018)
 
@@ -74,13 +75,19 @@ inline constexpr Colour toggleOnBottom{.red = 0xE2, .green = 0xE9, .blue = 0xDF}
 inline constexpr Colour greyedBorder{.red = 0xB4, .green = 0xC2, .blue = 0xD1};
 inline constexpr Colour greyedFace{.red = 0xD9, .green = 0xE4, .blue = 0xF1};
 inline constexpr Colour greyedText{.red = 0x8D, .green = 0x9B, .blue = 0xAB};
-// The Scientific view's angle units: a flat frame, round white choices with a dark dot on the chosen one
-inline constexpr Colour angleFrameBorder{.red = 0x86, .green = 0x96, .blue = 0xAA};
-inline constexpr Colour angleFrameFace{.red = 0xD9, .green = 0xE4, .blue = 0xF1};
-inline constexpr Colour angleText{.red = 0x1E, .green = 0x39, .blue = 0x5B};
-inline constexpr Colour angleCircle{.red = 0xFF, .green = 0xFF, .blue = 0xFF};
-inline constexpr Colour angleCircleBorder{.red = 0x8E, .green = 0x9C, .blue = 0xAD};
-inline constexpr Colour angleDot{.red = 0x33, .green = 0x33, .blue = 0x33};
+// The round choices (angle units, number bases, word sizes) in their flat frames: white circles, a dark dot on the
+// chosen one
+inline constexpr Colour frameBorder{.red = 0x86, .green = 0x96, .blue = 0xAA};
+inline constexpr Colour frameFace{.red = 0xD9, .green = 0xE4, .blue = 0xF1};
+inline constexpr Colour choiceText{.red = 0x1E, .green = 0x39, .blue = 0x5B};
+inline constexpr Colour choiceCircle{.red = 0xFF, .green = 0xFF, .blue = 0xFF};
+inline constexpr Colour choiceCircleBorder{.red = 0x8E, .green = 0x9C, .blue = 0xAD};
+inline constexpr Colour choiceDot{.red = 0x33, .green = 0x33, .blue = 0x33};
+// The hexadecimal digits A to F: a flat face
+inline constexpr Colour flatFace{.red = 0xD9, .green = 0xE4, .blue = 0xF1};
+// The bit display: the bits and, lighter, the bit positions under them
+inline constexpr Colour bitText{.red = 0x1E, .green = 0x39, .blue = 0x5B};
+inline constexpr Colour bitPositionText{.red = 0x66, .green = 0x66, .blue = 0x66};
 // The bracket counter "(=1": a flat cell
 inline constexpr Colour counterBorder{.red = 0x8E, .green = 0x9C, .blue = 0xAD};
 inline constexpr Colour counterFace{.red = 0xD9, .green = 0xE4, .blue = 0xF1};

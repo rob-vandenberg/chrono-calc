@@ -11,14 +11,16 @@
 
 #include <array>
 #include <initializer_list>
+#include <optional>
 #include <utility>
 #include <string>
 #include <string_view>
 
 // --- Version ------------------------------------------------------------
-// tests/test_calculator.cpp 0.2.7
+// tests/test_calculator.cpp 0.3.8
 
 // --- Version history ----------------------------------------------------
+// v0.3.8: The Programmer keys (characters, F2 to F8 and F12)
 // v0.2.7: The Scientific keys (characters, F3 to F5, Ctrl letters); Scientific commands do nothing in Standard
 // v0.1.6: The keys without a character and the Ctrl keys of the memory; view.basic changes nothing
 // v0.1.5: The one memory is the engine's own register; the start value comes from the engine
@@ -234,6 +236,33 @@ private slots:
             QCOMPARE(chrono_calc::commandForControlLetter(letter, View::Scientific).value_or(""), std::string_view(command));
         }
         QVERIFY(!chrono_calc::commandForControlLetter(U'G', View::Standard).has_value());
+    }
+
+    // The Programmer keys of Windows 7 (windows7-programmer.md part C)
+    static void theProgrammerKeysGiveTheirWindows7Commands()
+    {
+        using chrono_calc::Key;
+        using chrono_calc::View;
+        const std::array<std::pair<char32_t, const char*>, 17> characters = {{
+            {U'&', "and"}, {U'|', "or"}, {U'^', "xor"}, {U'~', "not"}, {U'<', "shift_left"}, {U'>', "shift_right"},
+            {U'%', "modulo"}, {U'(', "open_bracket"}, {U')', "close_bracket"}, {U'a', "digit.a"}, {U'b', "digit.b"},
+            {U'c', "digit.c"}, {U'd', "digit.d"}, {U'e', "digit.e"}, {U'f', "digit.f"}, {U'j', "rotate_left"}, {U'k', "rotate_right"}}};
+        for (const auto& [character, command] : characters) {
+            QCOMPARE(chrono_calc::commandForCharacter(character, View::Programmer).value_or(""), std::string_view(command));
+            QVERIFY(chrono_calc::findCommand(command).has_value());
+            QVERIFY(chrono_calc::commandForCharacter(character, View::Standard) != std::optional<std::string_view>(command));
+        }
+        const std::array<std::pair<Key, const char*>, 8> keys = {{
+            {Key::F5, "base.hexadecimal"}, {Key::F6, "base.decimal"}, {Key::F7, "base.octal"}, {Key::F8, "base.binary"},
+            {Key::F12, "word.qword"}, {Key::F2, "word.dword"}, {Key::F3, "word.word"}, {Key::F4, "word.byte"}}};
+        for (const auto& [key, command] : keys) {
+            QCOMPARE(chrono_calc::commandForKey(key, View::Programmer).value_or(""), std::string_view(command));
+            QVERIFY(chrono_calc::findCommand(command).has_value());
+        }
+        QVERIFY(!chrono_calc::commandForCharacter(U's', View::Programmer).has_value());
+        QCOMPARE(chrono_calc::commandForCharacter(U'F', View::Programmer).value_or(""), "digit.f");  // Shift+F (Windows 7)
+        QVERIFY(!chrono_calc::commandForControlLetter(U'G', View::Programmer).has_value());
+        QCOMPARE(chrono_calc::commandForControlLetter(U'M', View::Programmer).value_or(""), "memory.store");
     }
 
     // A Scientific command does nothing in the Standard view (no button there; its key gives nothing)

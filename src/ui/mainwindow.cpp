@@ -24,6 +24,7 @@
 #include <QWidget>
 
 #include "core/calculator.h"
+#include "core/commands.h"
 #include "core/colours.h"
 #include "core/enginetexts.h"
 #include "core/keys.h"
@@ -33,18 +34,18 @@
 #include "ui/calcbutton.h"
 #include "ui/displaypanel.h"
 #include "ui/look.h"
-#include "ui/scientificparts.h"
+#include "ui/viewparts.h"
 
-#include <algorithm>
 #include <map>
 #include <optional>
 #include <string>
 #include <string_view>
 
 // --- Version ------------------------------------------------------------
-// src/ui/mainwindow.cpp 0.2.7
+// src/ui/mainwindow.cpp 0.3.8
 
 // --- Version history ----------------------------------------------------
+// v0.3.8: The Programmer view: its size, the bases and word sizes, the bit display, the digits each base allows
 // v0.2.7: The Scientific view; View > Standard and Scientific switch the buttons and the window size; the view is
 //         remembered; Inv labels, the toggles, the angle units and the bracket counter follow the calculator (D-020)
 // v0.1.6: The Standard view: the menus, the display, the buttons and the keys, a fixed size and the position
@@ -58,10 +59,22 @@ namespace {
 const QString positionKey = QStringLiteral("window/position");
 const QString viewKey = QStringLiteral("window/view");
 const QString scientificName = QStringLiteral("scientific");
+const QString programmerName = QStringLiteral("programmer");
 const QString standardName = QStringLiteral("standard");
 
-// The height the window's gradient is measured on (Windows 7: the same in every view)
-constexpr double gradientHeight = 331.0;
+QString nameOf(View view)
+{
+    switch (view) {
+    case View::Scientific: return scientificName;
+    case View::Programmer: return programmerName;
+    case View::Standard: break;
+    }
+    return standardName;
+}
+
+// Where the window's gradient changes, in pixels from the top (Windows 7, windows7-standard.md part G)
+constexpr double gradientUpper = 79.0;
+constexpr double gradientBottom = 165.0;
 
 QString fromView(std::string_view text)
 {
@@ -81,8 +94,8 @@ protected:
         QLinearGradient gradient(0, 0, 0, height());
         gradient.setColorAt(0.0, qtColour(colours::windowTop));
         // Measured in Windows 7: the upper colour at y 79, the bottom colour from y 165 down
-        gradient.setColorAt(79.0 / gradientHeight, qtColour(colours::windowUpper));
-        gradient.setColorAt(165.0 / gradientHeight, qtColour(colours::windowBottom));
+        gradient.setColorAt(gradientUpper / height(), qtColour(colours::windowUpper));
+        gradient.setColorAt(gradientBottom / height(), qtColour(colours::windowBottom));
         gradient.setColorAt(1.0, qtColour(colours::windowBottom));
         painter.fillRect(rect(), gradient);
     }
@@ -101,10 +114,15 @@ std::optional<Key> keyOf(int qtKey)
     case Qt::Key_Backspace: return Key::Backspace;
     case Qt::Key_Return:
     case Qt::Key_Enter: return Key::Enter;
+    case Qt::Key_F2: return Key::F2;
     case Qt::Key_F3: return Key::F3;
     case Qt::Key_F4: return Key::F4;
     case Qt::Key_F5: return Key::F5;
+    case Qt::Key_F6: return Key::F6;
+    case Qt::Key_F7: return Key::F7;
+    case Qt::Key_F8: return Key::F8;
     case Qt::Key_F9: return Key::F9;
+    case Qt::Key_F12: return Key::F12;
     default: return std::nullopt;
     }
 }
@@ -129,8 +147,11 @@ MainWindow::MainWindow(Separators separators, QWidget* parent)
     setCentralWidget(m_area);
     m_display->setObjectName(QStringLiteral("display"));
     // The view the calculator was closed in, as Windows 7 remembers it
-    if (QSettings().value(viewKey).toString() == scientificName) {
+    const QString savedView = QSettings().value(viewKey).toString();
+    if (savedView == scientificName) {
         m_calculator.run("view.scientific");
+    } else if (savedView == programmerName) {
+        m_calculator.run("view.programmer");
     }
     buildView(m_calculator.view());
     // The window has the size of its view, as in Windows 7: it cannot be resized or maximised
@@ -207,7 +228,7 @@ void MainWindow::addMenuEntry(QMenu* menu, const MenuEntry& entry, std::map<int,
     if (built) {
         const std::string_view commandId = entry.commandId;
         connect(action, &QAction::triggered, this, [this, commandId] { runCommand(commandId); });
-        if (commandId == "view.standard" || commandId == "view.scientific") {
+        if (commandId.starts_with("view.") && commandId != "view.basic") {
             action->setData(fromView(commandId));
             m_viewActions.push_back(action);
         }
@@ -223,8 +244,9 @@ void MainWindow::buildView(View view)
     }
     m_viewParts.clear();
     m_buttons.clear();
-    m_angleButtons.clear();
+    m_choiceButtons.clear();
     m_bracketCounter = nullptr;
+    m_bitDisplay = nullptr;
 
     const ViewLayout& layout = layoutOf(view);
     m_builtView = view;
@@ -232,21 +254,29 @@ void MainWindow::buildView(View view)
     m_display->setViewLayout(layout);
     m_display->setGeometry(toRect(layout.displayFrame));
 
-    if (layout.angleFrame.width > 0) {
-        auto* frame = new AngleFrame(m_area);
-        frame->setGeometry(toRect(layout.angleFrame));
+    for (const Rectangle& place : layout.frames) {
+        auto* frame = new FlatFrame(m_area);
+        frame->setGeometry(toRect(place));
         frame->show();
         m_viewParts.push_back(frame);
     }
-    for (const AngleSpec& spec : layout.angles) {
-        auto* angle = new AngleButton(spec.commandId, fromView(spec.label), m_area);
-        angle->setObjectName(QStringLiteral("angle.") + fromView(spec.label).toLower());
-        angle->setGeometry(toRect(spec.rectangle));
+    for (const ChoiceSpec& spec : layout.choices) {
+        auto* choice = new ChoiceButton(spec.commandId, fromView(spec.label), m_area);
+        choice->setObjectName(QStringLiteral("choice.") + fromView(spec.commandId));
+        choice->setGeometry(toRect(spec.rectangle));
         const std::string_view commandId = spec.commandId;
-        connect(angle, &AngleButton::clicked, this, [this, commandId] { runCommand(commandId); });
-        angle->show();
-        m_viewParts.push_back(angle);
-        m_angleButtons.push_back(angle);
+        connect(choice, &ChoiceButton::clicked, this, [this, commandId] { runCommand(commandId); });
+        choice->show();
+        m_viewParts.push_back(choice);
+        m_choiceButtons.push_back(choice);
+    }
+    if (layout.bitDisplay.frame.width > 0) {
+        m_bitDisplay = new BitDisplay(layout.bitDisplay, m_area);
+        m_bitDisplay->setObjectName(QStringLiteral("bits"));
+        m_bitDisplay->setGeometry(toRect(layout.bitDisplay.frame));
+        connect(m_bitDisplay, &BitDisplay::bitClicked, this, [this](int bit) { runBitCommand(bit); });
+        m_bitDisplay->show();
+        m_viewParts.push_back(m_bitDisplay);
     }
     if (layout.bracketCounter.width > 0) {
         m_bracketCounter = new BracketCounter(m_area);
@@ -264,7 +294,6 @@ void MainWindow::buildView(View view)
         auto* button = new CalcButton(spec, m_area);
         button->setObjectName(QStringLiteral("button.") + fromView(spec.commandId));
         button->setGeometry(toRect(spec.rectangle));
-        button->setEnabled(Calculator::isAvailable(view, spec.commandId));
         const std::string_view commandId = spec.commandId;
         connect(button, &CalcButton::clicked, this, [this, commandId] { runCommand(commandId); });
         button->show();
@@ -277,6 +306,17 @@ void MainWindow::runCommand(std::string_view commandId)
 {
     m_calculator.run(commandId);
     showCalculator();
+}
+
+void MainWindow::runBitCommand(int bit)
+{
+    // The command ids "bit.0" to "bit.63" are in the registry (static text), so the view stays valid
+    for (const std::string_view id : commandIds()) {
+        if (id == "bit." + std::to_string(bit)) {
+            runCommand(id);
+            return;
+        }
+    }
 }
 
 void MainWindow::runKeyCommand(std::string_view commandId)
@@ -294,15 +334,17 @@ void MainWindow::showCalculator()
     const View view = m_calculator.view();
     if (view != m_builtView) {
         buildView(view);
-        QSettings().setValue(viewKey, view == View::Scientific ? scientificName : standardName);
+        QSettings().setValue(viewKey, nameOf(view));
     }
     for (QAction* action : m_viewActions) {
-        action->setChecked(action->data().toString() == (view == View::Scientific ? QStringLiteral("view.scientific") : QStringLiteral("view.standard")));
+        action->setChecked(action->data().toString() == QStringLiteral("view.") + nameOf(view));
     }
     m_display->showValues(QString::fromStdWString(m_calculator.display()), QString::fromStdWString(m_calculator.expression()),
                           m_calculator.hasMemory());
     const bool inverse = m_calculator.isInverse();
     for (CalcButton* button : m_buttons) {
+        // Greyed where the view or the base does not allow it (the decimal point in Programmer, 2 to 9 in Bin)
+        button->setEnabled(m_calculator.isAvailable(button->commandId()));
         button->showInverse(inverse);
         if (button->commandId() == "inverse") {
             button->showOn(inverse);
@@ -310,10 +352,11 @@ void MainWindow::showCalculator()
             button->showOn(m_calculator.isScientificNotation());
         }
     }
-    const AngleUnit unit = m_calculator.angleUnit();
-    for (AngleButton* angle : m_angleButtons) {
-        const auto target = std::ranges::find(layoutOf(view).angles, angle->commandId(), &AngleSpec::commandId);
-        angle->setChecked(target != layoutOf(view).angles.end() && target->unit == unit);
+    for (ChoiceButton* choice : m_choiceButtons) {
+        choice->setChecked(m_calculator.isChosen(choice->commandId()));
+    }
+    if (m_bitDisplay != nullptr) {
+        m_bitDisplay->showBits(m_calculator.bits(), m_calculator.wordBits());
     }
     if (m_bracketCounter != nullptr) {
         m_bracketCounter->showCount(m_calculator.openBrackets());
@@ -333,6 +376,11 @@ void MainWindow::keyPressEvent(QKeyEvent* event)
     } else if (modifiers == Qt::NoModifier || modifiers == Qt::ShiftModifier) {
         if (const auto key = keyOf(event->key())) {
             command = commandForKey(*key, m_calculator.view());
+        } else if (event->key() >= Qt::Key_A && event->key() <= Qt::Key_Z) {
+            // A letter is read from its key, not its character, as Windows 7 does: without Shift it is the small
+            // letter, with Shift the capital, whatever Caps Lock is (S is sin with Caps Lock on, Shift+S is nothing)
+            const char32_t first = modifiers == Qt::ShiftModifier ? U'A' : U'a';
+            command = commandForCharacter(static_cast<char32_t>(first + (event->key() - Qt::Key_A)), m_calculator.view());
         } else if (event->text().size() == 1) {
             command = commandForCharacter(event->text().at(0).unicode(), m_calculator.view());
         }

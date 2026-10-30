@@ -36,7 +36,7 @@ Versions (D-013): M0 is 0.0.z, M1 0.1.z, M2 0.2.z and so on; M9 finished is 1.0.
 
 | Task | What | Status |
 |---|---|---|
-| 3.1 | Hex, Dec, Oct, Bin; Qword, Dword, Word, Byte; bit operations (the engine has them); the bit display (ours) | todo |
+| 3.1 | Hex, Dec, Oct, Bin; Qword, Dword, Word, Byte; bit operations (the engine has them); the bit display (ours) | done (0.3.8, D-021): 30 Windows 7 results pass (`tests/test_reference_programmer.cpp`) |
 
 ## M4: Statistics view
 

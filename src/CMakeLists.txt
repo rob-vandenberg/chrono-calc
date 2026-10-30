@@ -1,7 +1,8 @@
 # --- Version ------------------------------------------------------------
-# src/CMakeLists.txt 0.2.7
+# src/CMakeLists.txt 0.3.8
 
 # --- Version history ----------------------------------------------------
+# v0.3.8: ui/scientificparts is ui/viewparts (choices, the bit display)
 # v0.2.7: The Scientific view: core/layout (every view), core/view.h; ui/scientificparts
 # v0.1.6: The Standard view: core has the layout, the menus and the colours; ui the window, the display, the buttons, the look
 # v0.0.4: core holds the engine wrapper, the command registry and the typed keys; chrono-calc-cli
@@ -17,7 +18,7 @@ chrono_calc_strict(chrono_calc_core)
 
 # ui: Qt Widgets, on top of core
 add_library(chrono_calc_ui STATIC ui/mainwindow.cpp ui/mainwindow.h ui/calcbutton.cpp ui/calcbutton.h
-    ui/displaypanel.cpp ui/displaypanel.h ui/look.cpp ui/look.h ui/fonts.cpp ui/fonts.h ui/scientificparts.cpp ui/scientificparts.h)
+    ui/displaypanel.cpp ui/displaypanel.h ui/look.cpp ui/look.h ui/fonts.cpp ui/fonts.h ui/viewparts.cpp ui/viewparts.h)
 set_target_properties(chrono_calc_ui PROPERTIES AUTOMOC ON)
 target_link_libraries(chrono_calc_ui PUBLIC chrono_calc_core Qt6::Widgets)
 chrono_calc_strict(chrono_calc_ui)

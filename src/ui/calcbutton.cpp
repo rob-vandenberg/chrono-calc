@@ -19,9 +19,10 @@
 #include <string_view>
 
 // --- Version ------------------------------------------------------------
-// src/ui/calcbutton.cpp 0.2.7
+// src/ui/calcbutton.cpp 0.3.8
 
 // --- Version history ----------------------------------------------------
+// v0.3.8: The flat face of the hexadecimal digits A to F
 // v0.2.7: The faces of Windows 7 (digit, function, memory, toggle), the greyed look, the label under Inv
 // v0.1.6: Initial: a calculator button in our own drawing, close to the Windows 7 Calculator (D-005, D-018)
 
@@ -61,6 +62,8 @@ Face restingFace(ButtonFace face, bool on)
                     .bottom = colours::toggleOnBottom};
         }
         break;
+    case ButtonFace::Flat:
+        return {.border = colours::buttonBorder, .top = colours::flatFace, .middle = colours::flatFace, .bottom = colours::flatFace};
     case ButtonFace::Function:
         break;
     }

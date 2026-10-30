@@ -6,9 +6,10 @@
 #include <string_view>
 
 // --- Version ------------------------------------------------------------
-// src/core/keys.cpp 0.2.7
+// src/core/keys.cpp 0.3.8
 
 // --- Version history ----------------------------------------------------
+// v0.3.8: The keys of the Programmer view: & | ^ ~ < > % ( ), a to f, j and k, F2 to F8 and F12
 // v0.2.7: The keys of the Scientific view: letters, ( ) # ! ;, F3 to F5, Ctrl+Y/G/B/S/O/T
 // v0.1.6: The keys without a character (Escape, Delete, Backspace, F9) and the Ctrl keys of the memory
 // v0.0.4: Initial: the typed characters of the Standard view and their commands
@@ -72,6 +73,61 @@ std::optional<std::string_view> scientificCharacter(char32_t character)
     }
 }
 
+std::optional<std::string_view> programmerCharacter(char32_t character)
+{
+    switch (character) {
+    case U'&': return "and";
+    case U'|': return "or";
+    case U'^': return "xor";
+    case U'~': return "not";
+    case U'<': return "shift_left";
+    case U'>': return "shift_right";
+    case U'%': return "modulo";
+    case U'(': return "open_bracket";
+    case U')': return "close_bracket";
+    case U'a':
+    case U'A': return "digit.a";
+    case U'b':
+    case U'B': return "digit.b";
+    case U'c':
+    case U'C': return "digit.c";
+    case U'd':
+    case U'D': return "digit.d";
+    case U'e':
+    case U'E': return "digit.e";
+    case U'f':
+    case U'F': return "digit.f";
+    case U'j': return "rotate_left";
+    case U'k': return "rotate_right";
+    default: return std::nullopt;
+    }
+}
+
+std::optional<std::string_view> programmerKey(Key key)
+{
+    switch (key) {
+    case Key::F5: return "base.hexadecimal";
+    case Key::F6: return "base.decimal";
+    case Key::F7: return "base.octal";
+    case Key::F8: return "base.binary";
+    case Key::F12: return "word.qword";
+    case Key::F2: return "word.dword";
+    case Key::F3: return "word.word";
+    case Key::F4: return "word.byte";
+    default: return std::nullopt;
+    }
+}
+
+std::optional<std::string_view> scientificKey(Key key)
+{
+    switch (key) {
+    case Key::F3: return "angle.degrees";
+    case Key::F4: return "angle.radians";
+    case Key::F5: return "angle.grads";
+    default: return std::nullopt;
+    }
+}
+
 }  // namespace
 
 std::optional<std::string_view> commandForCharacter(char32_t character, View view)
@@ -82,6 +138,9 @@ std::optional<std::string_view> commandForCharacter(char32_t character, View vie
     if (view == View::Scientific) {
         return scientificCharacter(character);
     }
+    if (view == View::Programmer) {
+        return programmerCharacter(character);
+    }
     switch (character) {
     case U'%': return "percent";
     case U'R': return "reciprocal";
@@ -91,16 +150,18 @@ std::optional<std::string_view> commandForCharacter(char32_t character, View vie
 
 std::optional<std::string_view> commandForKey(Key key, View view)
 {
-    const bool scientific = view == View::Scientific;
     switch (key) {
     case Key::Escape: return "clear";
     case Key::Delete: return "clear_entry";
     case Key::Backspace: return "backspace";
     case Key::Enter: return "equals";
     case Key::F9: return "negate";
-    case Key::F3: return scientific ? std::optional<std::string_view>("angle.degrees") : std::nullopt;
-    case Key::F4: return scientific ? std::optional<std::string_view>("angle.radians") : std::nullopt;
-    case Key::F5: return scientific ? std::optional<std::string_view>("angle.grads") : std::nullopt;
+    default: break;
+    }
+    switch (view) {
+    case View::Scientific: return scientificKey(key);
+    case View::Programmer: return programmerKey(key);
+    case View::Standard: break;
     }
     return std::nullopt;
 }
