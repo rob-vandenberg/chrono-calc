@@ -12,6 +12,7 @@ How Chrono Calc is built. The design is in place before the code; parts marked *
 | `src/app/` | `main.cpp`: starts Qt, sets the look and the settings name, builds the window, nothing else; `cli.cpp`: `chrono-calc-cli`, the calculator without a screen (D-016) |
 | `tests/` | Qt Test cases, one program per file, run with CTest (20 seconds at most, no screen): `test_version`, `test_mainwindow` (the window, keys, menus, position), `test_calculator`, `test_standardview` (both views' buttons and menus), `test_reference_standard`, `test_reference_scientific`, `test_reference_programmer`, `test_reference_statistics`, `test_reference_history`, `test_reference_unitconversion`, `test_reference_datecalculation` and `test_reference_worksheets` (Windows 7 results), `test_keyboardlayouts` (Latin or not), `test_layers` (the layer check); `tests/engine/`: Microsoft's 71 engine tests ported to Qt Test |
 | `packaging/` | The `.desktop` file (Calc), the AppStream metainfo, the icon; the install rules and CPack settings are in the top-level `CMakeLists.txt` (D-028) |
+| `art/` | Pictures for the README: `chrono-calc.png` (the owner's) , `chrono-calc.svg` (a copy of the icon in `packaging/`) and `heading-light.svg` and `heading-dark.svg` (the README title in outlines, 38 px high with the letters 2 px up, for GitHub light and dark; made by `scratchpad/title-svg`) |
 | `scratchpad/` | Working scripts of the sessions; git-ignored |
 
 ## 2. Building

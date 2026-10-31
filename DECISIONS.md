@@ -51,7 +51,7 @@ Every design decision as it stands now, by topic, short. Every decision here was
 
 ## Names and versions
 
-- **D-003** Names: Chrono Calc (title), `chrono-calc` (identifier, repository, files), `chrono_calc` (C++ namespace), Calc (the application menu entry). (2026-10-30)
+- **D-003** Names: Chrono Calc (title), `chrono-calc` (identifier, repository, files), `chrono_calc` (C++ namespace), Chrono Calc (the application menu entry; until 0.9.14 it was Calc; typing "calc" still finds it through the word Calc and the generic name Calculator). (2026-10-31)
 - **D-004** The project version lives only in the `project(... VERSION x.y.z)` line of the top-level `CMakeLists.txt`, starting at 0.0.1. The owner's `release` tool reads only `pyproject.toml`, so `gitpush.sh` commits and tags by itself. (2026-10-30)
 
 ## Packages
@@ -64,4 +64,4 @@ Every design decision as it stands now, by topic, short. Every decision here was
 
 ## GitHub
 
-- **D-007** The repository `rob-vandenberg/chrono-calc` stays private through M8; the owner makes it public with the first public release, 1.0.z, when M9 is finished (D-013). (2026-10-30)
+- **D-007** The repository `rob-vandenberg/chrono-calc` was private through M9 and is public from the first public release, 1.0.15 (D-013), with the description "The classic desktop calculator resurrected for Linux (C++, Qt 6)". The word "Windows" appears in no public text (AGENTS.md §0); the README credits Microsoft's engine, as its licence requires. (2026-10-31)

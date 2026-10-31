@@ -72,8 +72,8 @@ Versions (D-013): M0 is 0.0.z, M1 0.1.z, M2 0.2.z and so on; M9 finished is 1.0.
 
 | Task | What | Status |
 |---|---|---|
-| 9.1 | Help and About; our own icon; the Calc menu entry and AppStream file | done (0.9.14, D-028) |
-| 9.2 | `.deb` and `.rpm` packages: the CPack settings (`include(CPack)`, package names, dependencies) that `build-release.sh` needs; tested on Debian/Ubuntu and Fedora/RHEL, on KDE and GNOME; the owner tests the `.rpm` on a Fedora computer with Wayland, including the Greek or Hebrew Q key in Scientific (x², D-022: the keyboard layouts read over Wayland) | doing (0.9.14, D-028): the CPack settings are done and both packages build in Debian 12 and AlmaLinux 9; the owner's tests with `build-release.sh` remain |
+| 9.1 | Help and About; our own icon; the Chrono Calc menu entry and AppStream file | done (0.9.14, 1.0.15, D-028, D-003) |
+| 9.2 | `.deb` and `.rpm` packages: the CPack settings (`include(CPack)`, package names, dependencies) that `build-release.sh` needs; tested on Debian/Ubuntu and Fedora/RHEL, on KDE and GNOME; the owner tests the `.rpm` on a Fedora computer with Wayland, including the Greek or Hebrew Q key in Scientific (x², D-022: the keyboard layouts read over Wayland) | done (0.9.14, 1.0.15, D-028): built and tested by `build-release.sh`, released as 1.0.15; the owner's Wayland test on Fedora remains |
 
 ## M10: Windows (optional, the owner decides)
 

@@ -17,10 +17,10 @@ Every changelist says how it keeps this rule. What the rule does not settle is a
 
 | File | Purpose | When to read |
 |---|---|---|
-| `AGENTS.md` | Project-specific technical rules (this file) | Every session, first |
-| `CPP-DEVELOPMENT-RULES.md` | How we work together: the owner's working rules for C++ projects | Every session, second |
-| `OWNER-RULES.md` | Every rule the owner set, numbered (OR-nn); only the owner changes it; private: on this computer only, not in git | Every session, third (also loaded by itself) |
-| `STATUS.md` | Where we are now, the next task, open questions | Every session, fourth |
+| `CLAUDE.md` | Loads the owner's rules and this file at every start: `~/.claude/owner-rules/CPP-RULES.md` (CPP-nn), `OWNER-RULES.md` and `AGENTS.md`; the general rules (G-nn) come from `~/.claude/CLAUDE.md` | Loaded by itself |
+| `AGENTS.md` | Project-specific technical rules (this file) | Loaded by itself |
+| `OWNER-RULES.md` | Every rule the owner set for this project, numbered (OR-nn); only the owner changes it; private: on this computer only, not in git | Loaded by itself |
+| `STATUS.md` | Where we are now, the next task, open questions | Every session, first |
 | `DECISIONS.md` | Every design decision as it stands now, by topic, short | Every session, after STATUS.md; before proposing to change a design choice |
 | `ARCHITECTURE.md` | Folders, layers, how the engine is wrapped | Before any code task |
 | `ROADMAP.md` | Milestones and tasks, each with a status | When picking or finishing a task |
@@ -34,8 +34,8 @@ Every changelist says how it keeps this rule. What the rule does not settle is a
 | Project title, user-facing text (window titles, About, docs prose) | **Chrono Calc** (two words, each capitalized) |
 | Project identifier, repository name, release file names, executable | `chrono-calc` |
 | C++ namespace and other places where hyphens are not allowed | `chrono_calc` |
-| The entry in the desktop's application menu (Start menu) | **Calc** |
-| Release and delivery file names (CPP-DEVELOPMENT-RULES Rule 4) | `chrono-calc_x.y.z.ext` |
+| The entry in the desktop's application menu (Start menu) | **Chrono Calc** ("calc" still finds it: its generic name is Calculator) |
+| Release and delivery file names (CPP-1) | `chrono-calc_x.y.z.ext` |
 
 ## 3. Technology (fixed, see DECISIONS.md)
 
@@ -46,7 +46,7 @@ Every changelist says how it keeps this rule. What the rule does not settle is a
 - **Engine:** `CalcManager` and `RatPack` from microsoft/calculator, copied into `third_party/calculator/` with their MIT licence and the commit they came from. They are never edited; anything that must differ is done in our own wrapper (ARCHITECTURE.md).
 - **Strictness (the hard gate, like a type check):** the compiler runs with `-Wall -Wextra -Wpedantic -Werror` on our own code; `clang-tidy` with the project's `.clang-tidy` reports zero problems on our own code. `third_party/` is exempt from both.
 - **Tests:** Qt Test, run through CTest.
-- **Packages:** `.deb` and `.rpm` through CPack; a `.desktop` file named Calc and an AppStream metainfo file. Each package is built in a container of the oldest supported system (Debian 12 for the `.deb`, AlmaLinux 9 for the `.rpm`) and tested in a bare newer one (Ubuntu 24.04, Fedora 43) by the private `build-release.sh` (D-009). Only the owner runs it, for milestone versions.
+- **Packages:** `.deb` and `.rpm` through CPack; a `.desktop` file named Chrono Calc and an AppStream metainfo file. Each package is built in a container of the oldest supported system (Debian 12 for the `.deb`, AlmaLinux 9 for the `.rpm`) and tested in a bare newer one (Ubuntu 24.04, Fedora 43) by the private `build-release.sh` (D-009). Only the owner runs it, for milestone versions.
 - **License:** AGPL-3.0-or-later (the same as Chrono Mail). Every dependency must be license-compatible (MIT, LGPL Qt: yes).
 
 ## 4. Golden rules
@@ -88,8 +88,8 @@ This also lets an AI agent drive and test every feature without a screen.
 
 ## 5. Code conventions
 
-1. Version number and version history per file, exactly as CPP-DEVELOPMENT-RULES.md Rule 4 describes for C++.
-2. The project version lives in one place: the `project(... VERSION x.y.z)` line of the top-level `CMakeLists.txt`. When any code file changes, the project version changes too. A change of only documents keeps the version and is pushed with `./gitpush.sh` without a message.
+1. Versions, the project version in the top-level `CMakeLists.txt` and the version block of every file: CPP-1 to CPP-3.
+2. A change of only documents keeps the version and is pushed with `./gitpush.sh` without a message (OR-5).
 3. Small files with a single clear responsibility. A code file has at most 2,000 lines.
 4. Standard library first, Qt second, own code last.
 5. Names are descriptive and spelled out in full. Classes `PascalCase`, functions and variables `camelCase`, files `lowercase.cpp`/`.h`.
@@ -97,11 +97,13 @@ This also lets an AI agent drive and test every feature without a screen.
 
 ## 6. Workflow with AI agents
 
-`CPP-DEVELOPMENT-RULES.md` applies in full. How it maps onto agent work in Claude Code:
+The owner's rules apply in full: the general rules (G-nn), the C++ rules (CPP-nn) and `OWNER-RULES.md` (OR-nn), all loaded by themselves. How they map onto work in this project:
 
-1. **"Proceed" = plan approval.** The agent researches and proposes a changelist listing every change (Rule 2). Nothing is edited until the owner writes "Proceed". Approval covers exactly that changelist's scope (Rule 1).
-2. **Within an approved changelist**, the agent may build, run tests and fix its own failures, as long as the fixes stay inside the approved scope. Anything outside the scope needs a new changelist.
-3. **Delivery.** Files are edited in place. Every response that modifies files ends with the Rule 5 summary and push line. The owner pushes with `./gitpush.sh`.
+1. **Within an approved changelist** (G-4), the agent may build, run tests and fix its own failures, as long as the fixes stay inside the approved scope. Anything outside the scope needs a new changelist.
+2. **Delivery.** Files are edited in place. When a job is done and reviewed, the agent pushes it itself and names the pushed version (OR-5).
+3. **Checks.** Prove that a new test fails on the previous version of the code.
+4. **Cautions.** Never use `pkill -f`. Never repeat or commit a password.
+5. **Scripts meant for later** go in the project's `scratchpad/` folder (private, never in git), not in the chat's temporary folder, which is emptied.
 
 ## 7. Before you finish a task
 

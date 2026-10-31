@@ -1,8 +1,8 @@
 [Desktop Entry]
 Type=Application
-Name=Calc
+Name=Chrono Calc
 GenericName=Calculator
-Comment=Chrono Calc, the calculator
+Comment=The classic desktop calculator
 Exec=chrono-calc
 TryExec=chrono-calc
 Icon=chrono-calc

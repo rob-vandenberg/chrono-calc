@@ -134,3 +134,8 @@ Append-only. One entry per completed task, newest last.
 - Edit > History greyed where it can do nothing; Help > View Help opens the repository; Help > About Chrono Calc on F1 (`ui/aboutbox`); the owner's icon in `packaging/` (`ui/programicon`, QtSvg, built in); `help.view`, `help.about`; install rules and CPack for `.deb` and `.rpm`, the `.desktop` entry and the AppStream file (validated with desktop-file-validate and appstreamcli) (D-028).
 - Review (one reviewer, at the owner's wish to save tokens): Edit was enabled while History was hidden or no entry chosen, where it does nothing; now greyed then. Packaging found AlmaLinux 9's GCC 11 too old for the project (tests failed to compile); `build-release.sh` now enables gcc-toolset-13 there.
 - Related tests pass (`test_mainwindow`, `test_calculator`, `test_layers`, `test_version`) with GCC 15 and Clang 21, and on Debian 12; the `.deb` builds in Debian 12 (dependencies include libqt6svg6 and qt6-qpa-plugins), the `.rpm` in AlmaLinux 9 with GCC 13. Not run: the install tests in Ubuntu 24.04 and Fedora 43 (`build-release.sh`, the owner's).
+
+## 2026-10-31: 1.0.15, the first public release
+
+- The menu entry is "Chrono Calc" (was "Calc"; "calc" still finds it), the AppStream file lists release 1.0.15, a new README (no "Windows" anywhere; Microsoft credited for the engine), the GitHub description "The classic desktop calculator resurrected for Linux (C++, Qt 6)" (D-003, D-007).
+- Claude ran `build-release.sh` once, on the owner's order: both packages built, tested in Ubuntu 24.04 and Fedora 43 and uploaded to the release 1.0.15; then the repository was made public.

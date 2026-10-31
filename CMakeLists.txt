@@ -1,10 +1,11 @@
 cmake_minimum_required(VERSION 3.25)
-project(chrono-calc VERSION 0.9.14 LANGUAGES CXX)
+project(chrono-calc VERSION 1.0.15 LANGUAGES CXX)
 
 # --- Version ------------------------------------------------------------
-# CMakeLists.txt 0.9.14
+# CMakeLists.txt 1.0.15
 
 # --- Version history ----------------------------------------------------
+# v1.0.15: The first public release (the menu entry Chrono Calc)
 # v0.9.14: M9 (versions 0.9.z): QtSvg for the icon; the install rules and CPack for the .deb and .rpm
 # v0.8.13: M6, M7 and M8 (versions 0.8.z): Unit conversion, Date calculation, the Worksheets
 # v0.5.12: M5 (versions 0.5.z): History, Digit grouping, Copy and Paste

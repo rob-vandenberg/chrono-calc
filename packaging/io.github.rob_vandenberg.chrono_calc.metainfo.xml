@@ -1,5 +1,6 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<!-- io.github.rob_vandenberg.chrono_calc.metainfo.xml 0.9.14
+<!-- io.github.rob_vandenberg.chrono_calc.metainfo.xml 1.0.15
+     v1.0.15: The first public release in the version list software centres show
      v0.9.14: Initial: the app information software centres (Discover, GNOME Software) need to list Chrono Calc as an
      installed program. Installed in /usr/share/metainfo by the top-level CMakeLists.txt. -->
 <component type="desktop-application">
@@ -37,6 +38,9 @@
   </keywords>
   <url type="homepage">https://github.com/rob-vandenberg/chrono-calc</url>
   <url type="bugtracker">https://github.com/rob-vandenberg/chrono-calc/issues</url>
+  <releases>
+    <release version="1.0.15" date="2026-10-31"/>
+  </releases>
   <content_rating type="oars-1.1"/>
   <provides>
     <binary>chrono-calc</binary>
