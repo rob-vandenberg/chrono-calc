@@ -139,3 +139,9 @@ Append-only. One entry per completed task, newest last.
 
 - The menu entry is "Chrono Calc" (was "Calc"; "calc" still finds it), the AppStream file lists release 1.0.15, a new README (no "Windows" anywhere; Microsoft credited for the engine), the GitHub description "The classic desktop calculator resurrected for Linux (C++, Qt 6)" (D-003, D-007).
 - Claude ran `build-release.sh` once, on the owner's order: both packages built, tested in Ubuntu 24.04 and Fedora 43 and uploaded to the release 1.0.15; then the repository was made public.
+
+## 2026-11-11: 1.0.16, the new icon
+
+- The owner's new icon `art/chrono-calc.svg` copied over `packaging/chrono-calc.svg` (built into the window and Help > About, installed as the menu icon); release 1.0.16 in the AppStream file (appstreamcli validates it) (D-028).
+- Build with GCC without warnings; `test_version` and `test_mainwindow` pass; the icon drawn with QtSvg at 256 to 16 px looks right. One reviewer checked every place the icon is used.
+- Released with `build-release.sh` on the owner's order.

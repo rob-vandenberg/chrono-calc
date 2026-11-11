@@ -1,4 +1,4 @@
-# <img src="art/chrono-calc.svg" width="40" alt=""> <picture><source media="(prefers-color-scheme: dark)" srcset="art/heading-dark.svg"><img src="art/heading-light.svg" height="38" alt="Chrono Calc"></picture>
+# <img src="art/chrono-calc.svg" width="40" alt=""> <img src="art/heading-light.svg#gh-light-mode-only" height="38" alt="Chrono Calc"><img src="art/heading-dark.svg#gh-dark-mode-only" height="38" alt="Chrono Calc">
 
 The classic desktop calculator, resurrected for Linux.
 
