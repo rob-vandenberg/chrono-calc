@@ -5,6 +5,7 @@ Every design decision as it stands now, by topic, short. Every decision here was
 ## The product
 
 - **D-008** Chrono Calc does everything the Windows 7 Calculator does: the same results, views, side panels, keys, shortcuts, menus and layout (AGENTS.md §0). (2026-10-30)
+- **D-029** Brackets in the Standard view (the owner, 2026-11-21), an exception to D-008: Windows 7's Standard view has none. `(` and `)` from the keyboard and in pasted text open and close a bracket; no buttons, the view looks as before. The Standard view still works left to right inside and outside brackets ((3+4)*(8+2)= is 70); the engine already handles brackets in that mode, only the wrapper refused them. The expression line is the wrapper's own (D-017), so it adds the brackets as typed, tight as the Scientific view writes them ("(8 * 4 + 7) *"); after a ")" the next operator adds only itself; a value right before "(" is multiplied, as the engine does ("3(" is "3 * ("); = closes the open brackets; a ")" without an open one does nothing. The history keeps them ("(3 + 4) * (8 + 2)"), History > Edit calculates them. The requirements are in `REQUIREMENTS.md`. (2026-11-21)
 - **D-005** Our own look, very very close to the old calculator: same layout, proportions, colours and feel; every image, icon and button drawing is our own; nothing of Microsoft's artwork is copied. (2026-10-30)
 
 ## Technology

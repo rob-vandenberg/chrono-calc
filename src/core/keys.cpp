@@ -9,9 +9,10 @@
 #include <utility>
 
 // --- Version ------------------------------------------------------------
-// src/core/keys.cpp 0.5.12
+// src/core/keys.cpp 1.0.17
 
 // --- Version history ----------------------------------------------------
+// v1.0.17: ( and ) in the Standard view too (D-029)
 // v0.5.12: F2 edits (the history, the Statistics list); Up, Down, Page Up and Page Down move in the history
 // v0.4.11: The keys of the Statistics view: digits, a s t d, x e v; Enter is Add; Ctrl+A/S/T
 // v0.3.9: The letter at a key's position, for keyboards without Latin letters
@@ -183,6 +184,8 @@ std::optional<std::string_view> commandForCharacter(char32_t character, View vie
     switch (character) {
     case U'%': return "percent";
     case U'R': return "reciprocal";
+    case U'(': return "open_bracket";  // typed brackets in Standard too, the owner's choice (D-029); no buttons
+    case U')': return "close_bracket";
     default: return std::nullopt;
     }
 }

@@ -1,10 +1,11 @@
 cmake_minimum_required(VERSION 3.25)
-project(chrono-calc VERSION 1.0.16 LANGUAGES CXX)
+project(chrono-calc VERSION 1.0.17 LANGUAGES CXX)
 
 # --- Version ------------------------------------------------------------
-# CMakeLists.txt 1.0.16
+# CMakeLists.txt 1.0.17
 
 # --- Version history ----------------------------------------------------
+# v1.0.17: Brackets in the Standard view (D-029)
 # v1.0.16: The new icon (packaging/chrono-calc.svg, the owner's design)
 # v1.0.15: The first public release (the menu entry Chrono Calc)
 # v0.9.14: M9 (versions 0.9.z): QtSvg for the icon; the install rules and CPack for the .deb and .rpm

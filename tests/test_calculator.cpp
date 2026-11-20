@@ -18,9 +18,10 @@
 #include <string_view>
 
 // --- Version ------------------------------------------------------------
-// tests/test_calculator.cpp 0.5.12
+// tests/test_calculator.cpp 1.0.17
 
 // --- Version history ----------------------------------------------------
+// v1.0.17: Brackets in the Standard view from the keyboard and Paste (D-029)
 // v0.5.12: F2, Up, Down, Page Up and Page Down (History and the Statistics edit)
 // v0.3.9: The Latin letter at a key's position
 // v0.3.8: The Programmer keys (characters, F2 to F8 and F12)
@@ -293,7 +294,10 @@ private slots:
         for (const auto& [character, command] : characters) {
             QCOMPARE(chrono_calc::commandForCharacter(character, View::Programmer).value_or(""), std::string_view(command));
             QVERIFY(chrono_calc::findCommand(command).has_value());
-            QVERIFY(chrono_calc::commandForCharacter(character, View::Standard) != std::optional<std::string_view>(command));
+            // Only the brackets work in Standard as well, typed (the owner's choice, D-029)
+            if (character != U'(' && character != U')') {
+                QVERIFY(chrono_calc::commandForCharacter(character, View::Standard) != std::optional<std::string_view>(command));
+            }
         }
         const std::array<std::pair<Key, const char*>, 8> keys = {{
             {Key::F5, "base.hexadecimal"}, {Key::F6, "base.decimal"}, {Key::F7, "base.octal"}, {Key::F8, "base.binary"},
@@ -312,9 +316,64 @@ private slots:
     static void aScientificCommandDoesNothingInStandard()
     {
         chrono_calc::Calculator calculator;
-        QCOMPARE(text(after(calculator, {"digit.3", "digit.0", "sin", "open_bracket", "inverse"})), QStringLiteral("30"));
+        QCOMPARE(text(after(calculator, {"digit.3", "digit.0", "sin", "inverse"})), QStringLiteral("30"));
         QCOMPARE(text(calculator.expression()), QString());
         QVERIFY(!calculator.isInverse());
+    }
+
+    // Brackets in the Standard view, typed or pasted (the owner's choice, D-029): left to right inside and outside them,
+    // the expression line shows them as typed, = closes the open ones, and the history keeps them
+    static void bracketsInTheStandardView()
+    {
+        QCOMPARE(chrono_calc::commandForCharacter(U'(', chrono_calc::View::Standard).value_or(""), "open_bracket");
+        QCOMPARE(chrono_calc::commandForCharacter(U')', chrono_calc::View::Standard).value_or(""), "close_bracket");
+        {
+            chrono_calc::Calculator calculator;
+            QVERIFY(calculator.run("view.history"));
+            QCOMPARE(text(after(calculator, {"open_bracket", "digit.3", "add", "digit.4", "close_bracket", "multiply", "open_bracket",
+                                             "digit.8", "add", "digit.2", "close_bracket"})),
+                     QStringLiteral("10"));
+            QCOMPARE(text(calculator.expression()), QStringLiteral("(3 + 4) * (8 + 2)"));
+            QCOMPARE(text(after(calculator, {"equals"})), QStringLiteral("70"));
+            QCOMPARE(text(calculator.historyEntries().back()), QStringLiteral("(3 + 4) * (8 + 2)"));
+            // History > Edit calculates an entry with brackets again
+            QVERIFY(calculator.run("history.edit"));
+            QVERIFY(calculator.run("history.recalculate", L"(3+4)*(8+1)"));
+            QCOMPARE(text(calculator.display()), QStringLiteral("63"));
+            QCOMPARE(text(calculator.historyEntries().back()), QStringLiteral("(3 + 4) * (8 + 1)"));
+        }
+        {
+            chrono_calc::Calculator calculator;
+            QCOMPARE(text(after(calculator, {"digit.2", "add", "digit.3", "multiply", "open_bracket", "digit.1", "add", "digit.1"})),
+                     QStringLiteral("1"));
+            QCOMPARE(text(calculator.expression()), QStringLiteral("2 + 3 * (1 +"));
+            QCOMPARE(text(after(calculator, {"close_bracket", "equals"})), QStringLiteral("10"));
+        }
+        {
+            // The operator after a ")" adds only itself; a value right before "(" is multiplied, as the engine does
+            chrono_calc::Calculator calculator;
+            after(calculator, {"open_bracket", "digit.8", "multiply", "digit.4", "add", "digit.7", "close_bracket", "multiply"});
+            QCOMPARE(text(calculator.expression()), QStringLiteral("(8 * 4 + 7) *"));
+            QCOMPARE(text(calculator.display()), QStringLiteral("39"));
+            chrono_calc::Calculator multiplied;
+            QCOMPARE(text(after(multiplied, {"digit.3", "open_bracket", "digit.4", "close_bracket", "equals"})), QStringLiteral("12"));
+        }
+        {
+            // A ")" without an open bracket changes nothing; = closes the brackets still open
+            chrono_calc::Calculator calculator;
+            QCOMPARE(text(after(calculator, {"digit.5", "close_bracket"})), QStringLiteral("5"));
+            QCOMPARE(text(calculator.expression()), QString());
+            QCOMPARE(text(after(calculator, {"clear", "open_bracket", "digit.3", "add", "digit.4", "multiply", "digit.2", "equals"})),
+                     QStringLiteral("14"));
+            QCOMPARE(calculator.openBrackets(), 0U);
+            QCOMPARE(text(calculator.expression()), QString());
+        }
+        {
+            // Paste reads the brackets as typed keys
+            chrono_calc::Calculator calculator;
+            QVERIFY(calculator.run("edit.paste", L"(3+4)*(8+2)="));
+            QCOMPARE(text(calculator.display()), QStringLiteral("70"));
+        }
     }
 
     // View > Basic only hides a side panel: the number, the expression line and the memory stay

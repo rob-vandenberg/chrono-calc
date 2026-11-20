@@ -34,9 +34,11 @@
 #include <vector>
 
 // --- Version ------------------------------------------------------------
-// src/core/calculator.cpp 0.9.14
+// src/core/calculator.cpp 1.0.17
 
 // --- Version history ----------------------------------------------------
+// v1.0.17: Brackets in the Standard view (D-029): open and close, the expression line adds them, = closes them; the
+//          current value's part starts after an open bracket too
 // v0.9.14: Help > View Help and About change nothing and keep an edit open
 // v0.8.13: The side panel (View > Basic, Unit conversion, Date calculation), kept over a view change; the Unit
 //          conversion panel: its lists, the From box and the To result on the engine's exact fractions (D-025); the Date
@@ -331,8 +333,11 @@ public:
         std::size_t start = 0;
         for (std::size_t index = 0; index < tokens->size(); ++index) {
             const int command = (*tokens)[index].second;
-            if (commands && command >= 0 && static_cast<std::size_t>(command) < commands->size()
-                && (*commands)[static_cast<std::size_t>(command)]->GetCommandType() == CalculationManager::CommandType::BinaryCommand) {
+            // The current value's part starts after the last operator or open bracket ("sqrt(9)" in "2 + (sqrt(9)");
+            // the engine writes an open bracket as a token of its own without a command (History.cpp)
+            if ((commands && command >= 0 && static_cast<std::size_t>(command) < commands->size()
+                 && (*commands)[static_cast<std::size_t>(command)]->GetCommandType() == CalculationManager::CommandType::BinaryCommand)
+                || trimmed((*tokens)[index].first) == L"(") {
                 start = index + 1;
             }
         }
@@ -767,6 +772,17 @@ void Calculator::runStandard(std::uintptr_t opCode)
         percent();
         return;
     }
+    if (opCode == IDC_OPENP) {
+        openBracket();
+        return;
+    }
+    if (opCode == IDC_CLOSEP) {
+        closeBracket();
+        return;
+    }
+    if (opCode == IDC_EQU && !closeBrackets(*m_engine, *m_display)) {
+        return;
+    }
     // While an error shows, the engine takes CE as C (scicomm.cpp), so the expression line is cleared as well
     const bool clears = opCode == IDC_CLEAR || (opCode == IDC_CENTR && isError());
     runEngine(opCode);
@@ -779,6 +795,7 @@ void Calculator::runStandard(std::uintptr_t opCode)
         m_percentText.clear();
         m_afterEquals = false;
         m_result.reset();
+        m_afterCloseBracket = false;
         return;
     }
     switch (opCode) {
@@ -792,6 +809,7 @@ void Calculator::runStandard(std::uintptr_t opCode)
         m_lastWasOperator = false;
         m_percentText.clear();
         m_afterEquals = true;
+        m_afterCloseBracket = false;
         // A percent right after = takes this result as its base (Windows 7)
         if (!isError()) {
             m_result = currentValue();
@@ -808,6 +826,7 @@ void Calculator::runStandard(std::uintptr_t opCode)
         m_lastWasOperator = false;
         m_percentText.clear();
         m_afterEquals = false;
+        m_afterCloseBracket = false;
         break;
     }
 }
@@ -838,13 +857,14 @@ std::wstring Calculator::expression() const
         return m_afterEquals ? std::wstring() : tightBrackets(m_display->full());
     }
     std::wstring current = m_percentText.empty() ? m_display->tail() : m_percentText;
-    if (m_lastWasOperator || m_afterEquals) {
+    if (m_lastWasOperator || m_afterEquals || m_afterCloseBracket) {
         current.clear();
     }
     if (m_chain.empty()) {
         return current;
     }
-    return current.empty() ? m_chain : m_chain + L' ' + current;
+    // Brackets tight against what they hold, as the Scientific view writes them: "(8 * 4 + 7) *"
+    return tightBrackets(current.empty() ? m_chain : m_chain + L' ' + current);
 }
 
 bool Calculator::isError() const
@@ -911,6 +931,10 @@ bool Calculator::isAvailable(View view, NumberBase base, const CommandTarget& ta
     case View::Statistics:
         return statisticsAllows(opCode);
     case View::Standard:
+        // Brackets from the keyboard and Paste, which Windows 7's Standard view does not have (D-029)
+        if (opCode == IDC_OPENP || opCode == IDC_CLOSEP) {
+            return true;
+        }
         break;
     }
     return !isScientificOnly(opCode) && !isProgrammerOnly(opCode);
@@ -1039,6 +1063,7 @@ void Calculator::resetWrapperState()
     m_percentText.clear();
     m_afterEquals = false;
     m_result.reset();
+    m_afterCloseBracket = false;
 }
 
 // Windows 7 clears the display and the expression line on a view change, keeps the memory, and starts the Scientific
@@ -1246,6 +1271,9 @@ void Calculator::binaryOperator(std::uintptr_t opCode)
     if (m_lastWasOperator && !m_chain.empty()) {
         // Another operator right after one replaces it, in the engine and on the expression line
         m_chain.back() = operatorCharacter(opCode);
+    } else if (m_afterCloseBracket) {
+        m_chain += L' ';
+        m_chain += operatorCharacter(opCode);
     } else {
         std::wstring operand = m_percentText.empty() ? m_display->tail() : m_percentText;
         if (m_afterEquals || operand.empty()) {
@@ -1259,6 +1287,7 @@ void Calculator::binaryOperator(std::uintptr_t opCode)
     m_afterEquals = false;
     m_percentText.clear();
     m_result.reset();
+    m_afterCloseBracket = false;
     // The left value of multiply and divide, for a Windows 7 percent: the engine shows it as its current value now
     // (unless the operator itself ended in an error, as 1/0 * does)
     if ((opCode == IDC_MUL || opCode == IDC_DIV) && !isError()) {
@@ -1266,6 +1295,69 @@ void Calculator::binaryOperator(std::uintptr_t opCode)
     } else {
         m_leftValue.reset();
     }
+}
+
+// The current value as the expression line writes it before an operator: its own part ("sqrt(9)"), a percent's
+// text, or the number shown
+std::wstring Calculator::currentOperand() const
+{
+    std::wstring operand = m_percentText.empty() ? m_display->tail() : m_percentText;
+    if (m_afterEquals || operand.empty()) {
+        operand = ungrouped(display());
+    }
+    return operand;
+}
+
+// "(" in the Standard view (D-029). The engine multiplies by itself when a value comes right before it ("3(" is
+// "3 * ("), so the line takes that value and * as well; a bracket beyond the engine's depth changes nothing
+void Calculator::openBracket()
+{
+    const unsigned int before = m_display->openBrackets();
+    const auto multiplications = std::ranges::count(m_display->full(), L'*');
+    const std::wstring operand = currentOperand();
+    runEngine(IDC_OPENP);
+    if (m_display->openBrackets() <= before) {
+        return;
+    }
+    if (std::ranges::count(m_display->full(), L'*') > multiplications) {
+        if (!m_afterCloseBracket) {
+            m_chain = m_chain.empty() ? operand : m_chain + L' ' + operand;
+        }
+        m_chain += L" *";
+    }
+    m_chain = m_chain.empty() ? std::wstring(L"(") : m_chain + L" (";
+    // A bracket starts a calculation of its own: no operator is pending in it yet
+    m_pendingOperator = 0;
+    m_leftValue.reset();
+    m_lastWasOperator = false;
+    m_percentText.clear();
+    m_afterEquals = false;
+    m_result.reset();
+    m_afterCloseBracket = false;
+}
+
+// ")" in the Standard view (D-029): the value in the bracket goes on the line and the bracket closes; without an
+// open bracket the engine refuses it and nothing changes
+void Calculator::closeBracket()
+{
+    const unsigned int before = m_display->openBrackets();
+    // Right after an operator the engine takes the value shown as its right side ("(2 +)" is "(2 + 2)")
+    const std::wstring operand = currentOperand();
+    runEngine(IDC_CLOSEP);
+    if (m_display->openBrackets() >= before) {
+        return;
+    }
+    if (!m_afterCloseBracket) {
+        m_chain = m_chain.empty() ? operand : m_chain + L' ' + operand;
+    }
+    m_chain += L')';
+    m_pendingOperator = 0;
+    m_leftValue.reset();
+    m_lastWasOperator = false;
+    m_percentText.clear();
+    m_afterEquals = false;
+    m_result.reset();
+    m_afterCloseBracket = true;
 }
 
 // Windows 7 takes y% as y * x / 100 after every operator. The engine does so after + and -, but after multiply and
@@ -1554,6 +1646,7 @@ void Calculator::chooseHistoryEntry(std::size_t index)
     m_lastWasOperator = false;
     m_percentText.clear();
     m_afterEquals = false;
+    m_afterCloseBracket = false;
 }
 
 void Calculator::recalculateHistoryEntry(std::wstring_view text)

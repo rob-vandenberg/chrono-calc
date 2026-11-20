@@ -1,7 +1,9 @@
 # STATUS.md
 
-**Version:** 1.0.16 (the new icon)
-**Date:** 2026-11-11
+**Version:** 1.0.17 (brackets in the Standard view)
+**Date:** 2026-11-21
+
+**1.0.17:** brackets in the Standard view from the keyboard and Paste, no buttons, the owner's exception to Windows 7 (D-029, `REQUIREMENTS.md`, new): left to right inside and outside them, shown on the expression line, closed by =, kept in the history. Not released (no `build-release.sh`).
 
 **1.0.16:** the owner's new icon (`art/chrono-calc.svg`, copied to `packaging/chrono-calc.svg`): the window, Help > About and the menu entry show it; the AppStream file lists release 1.0.16; released with `build-release.sh` on the owner's order (D-028).
 

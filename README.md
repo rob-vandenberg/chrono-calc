@@ -46,6 +46,7 @@ Letters work without Shift. Each view has its own letters; the memory and window
 <tr><td><code>F9</code></td><td>±</td></tr>
 <tr><td><code>@</code> <code>r</code></td><td>√ 1/x</td></tr>
 <tr><td><code>%</code></td><td>%</td></tr>
+<tr><td><code>(</code> <code>)</code></td><td>brackets</td></tr>
 </table>
 
 <table>

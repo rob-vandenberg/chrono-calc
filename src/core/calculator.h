@@ -22,9 +22,10 @@
 #include <vector>
 
 // --- Version ------------------------------------------------------------
-// src/core/calculator.h 0.8.13
+// src/core/calculator.h 1.0.17
 
 // --- Version history ----------------------------------------------------
+// v1.0.17: openBracket, closeBracket and currentOperand for brackets in the Standard view (D-029)
 // v0.8.13: The side panel beside the calculator (View > Basic, Unit conversion, Date calculation), the Unit conversion
 //          panel (D-025), the Date calculation panel (D-026) and the Worksheets (D-027)
 // v0.5.12: History (one per view, from the engine; choosing an entry, Copy history, Clear, Edit), Digit grouping,
@@ -193,6 +194,9 @@ private:
     // The number shown without the separators of Digit grouping: the expression line never groups (Windows 7)
     [[nodiscard]] std::wstring ungrouped(const std::wstring& text) const;
     void binaryOperator(std::uintptr_t opCode);
+    [[nodiscard]] std::wstring currentOperand() const;
+    void openBracket();
+    void closeBracket();
     void percent();
     // The engine's current value, read exactly through its memory register; the memory is left as it was
     [[nodiscard]] CalcEngine::Rational currentValue();
@@ -258,6 +262,9 @@ private:
     bool m_afterEquals = false;
     // The result of the last =, while no operator came after it: a percent then takes it as its base
     std::optional<CalcEngine::Rational> m_result;
+    // Right after a ")" in the Standard view (D-029): the bracket's value is on the expression line already, so neither
+    // the line nor the next operator adds it again
+    bool m_afterCloseBracket = false;
 
     SidePanel m_sidePanel = SidePanel::Basic;
     UnitConverter m_unitConverter{L'.'};

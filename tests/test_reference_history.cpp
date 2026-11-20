@@ -17,9 +17,10 @@
 #include <vector>
 
 // --- Version ------------------------------------------------------------
-// tests/test_reference_history.cpp 0.5.12
+// tests/test_reference_history.cpp 1.0.17
 
 // --- Version history ----------------------------------------------------
+// v1.0.17: F3-18 keeps the pasted brackets in Standard (D-029); Windows 7 skipped them
 // v0.5.12: Initial: the Windows 7 History, Digit grouping, Copy and Paste results of tests/reference/windows7-history.md
 
 // Each line of tests/reference/windows7-history.md, measured in the Windows 7 Calculator (regional settings with a
@@ -192,7 +193,8 @@ std::vector<Line> lines()
         {"F3-15 1e5", "edit.paste=1e5", "15"},
         {"F3-16 1,2e+3", "edit.paste=1,2e+3", "1,23", ""},
         {"F3-17 5,e+3", "edit.paste=5,e+3", "5,3", ""},
-        {"F3-18 (2+3)*4=", "edit.paste=(2+3)*4=", "20", "", "2 + 3 * 4"},
+        // Windows 7 skipped the brackets here (entry "2 + 3 * 4"); Chrono Calc keeps them, the owner's choice (D-029)
+        {"F3-18 (2+3)*4=", "edit.paste=(2+3)*4=", "20", "", "(2 + 3) * 4"},
         {"F3-19 2 CRLF 3", "edit.paste=2~|3", "3", "", ""},
         {"F3-20 200 digits",
          "edit.paste=11111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111",

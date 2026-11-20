@@ -145,3 +145,8 @@ Append-only. One entry per completed task, newest last.
 - The owner's new icon `art/chrono-calc.svg` copied over `packaging/chrono-calc.svg` (built into the window and Help > About, installed as the menu icon); release 1.0.16 in the AppStream file (appstreamcli validates it) (D-028).
 - Build with GCC without warnings; `test_version` and `test_mainwindow` pass; the icon drawn with QtSvg at 256 to 16 px looks right. One reviewer checked every place the icon is used.
 - Released with `build-release.sh` on the owner's order.
+
+## 2026-11-21: 1.0.17, brackets in the Standard view
+
+- `(` and `)` typed or pasted work in the Standard view, no buttons (the owner's exception to Windows 7, D-029; `REQUIREMENTS.md` started with it): `core/keys`, `Calculator::isAvailable`, `openBracket`, `closeBracket`, = closes open brackets; the Standard expression line adds them as typed ("(8 * 4 + 7) *"); the engine's current-value part now starts after an open bracket too.
+- Test `bracketsInTheStandardView` (fails on 1.0.16); two checks changed to the new rule (`theProgrammerKeysGiveTheirWindows7Commands`, history F3-18, where Windows 7 skipped pasted brackets). GCC build without warnings, clang-tidy clean; `test_calculator`, `test_reference_standard`, `test_reference_history`, `test_reference_scientific`, `test_mainwindow`, `test_layers` pass. One reviewer.
